@@ -22,8 +22,8 @@
 
 <div id="kanban-card-modal" class="fixed inset-0 z-50 hidden" aria-hidden="true">
   <div class="js-card-modal-backdrop absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
-  <div class="relative flex min-h-full items-center justify-center p-4 sm:p-6">
-    <div class="w-full max-w-5xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_40px_120px_-30px_rgba(15,23,42,0.55)]">
+  <div class="relative flex min-h-full items-end justify-center p-2 sm:items-center sm:p-6">
+    <div class="flex max-h-[calc(100vh-1rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_40px_120px_-30px_rgba(15,23,42,0.55)] sm:max-h-[calc(100vh-3rem)]">
       <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7 sm:py-6">
         <div>
           <div id="kanban-card-modal-id" class="text-[11px] font-black uppercase tracking-[0.32em] text-sky-600"></div>
@@ -32,7 +32,7 @@
         <button type="button" class="js-close-card-modal inline-flex h-10 w-10 flex-none items-center justify-center rounded-full bg-slate-100 text-xl text-slate-400 transition hover:bg-slate-200 hover:text-slate-700" aria-label="Close card details">×</button>
       </div>
 
-      <div class="flex max-h-[82vh] flex-col lg:flex-row lg:divide-x lg:divide-slate-100">
+      <div class="min-h-0 flex flex-1 flex-col lg:flex-row lg:divide-x lg:divide-slate-100">
         <div class="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6 lg:px-6 lg:py-5">
           <div class="space-y-4">
             <div id="kanban-card-modal-live" class="hidden rounded-2xl bg-sky-50 px-4 py-3 text-sm font-medium text-sky-700 ring-1 ring-sky-100">Live worker task</div>
@@ -105,6 +105,26 @@
   (() => {
     const modal = document.getElementById('kanban-card-modal');
     if (!modal) return;
+
+    const createTaskModal = () => document.getElementById('kanban-create-task-modal');
+    const createTaskModalPanel = () => createTaskModal()?.querySelector('.js-create-task-modal-panel');
+    const openCreateTaskModal = () => {
+      const modal = createTaskModal();
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      window.setTimeout(() => modal.querySelector('input, textarea, select')?.focus(), 0);
+    };
+    const closeCreateTaskModal = () => {
+      const modal = createTaskModal();
+      if (!modal) return;
+      modal.classList.add('hidden');
+      modal.setAttribute('aria-hidden', 'true');
+      if (document.getElementById('kanban-card-modal')?.classList.contains('hidden')) {
+        document.body.classList.remove('overflow-hidden');
+      }
+    };
 
     const fields = {
       id: document.getElementById('kanban-card-modal-id'),
@@ -303,7 +323,6 @@
         badgeMarkup(data.cardStatus || 'Task', data.cardStatusKey === 'ready_for_review' ? 'border-amber-200 bg-amber-100 text-amber-800' : 'border-slate-200 bg-slate-100 text-slate-700')
       ];
 
-      if (data.cardPriority) badges.push(badgeMarkup(data.cardPriority));
       if (data.cardLane) badges.push(badgeMarkup(data.cardLane));
       if (data.cardWorker && data.cardWorker !== data.cardLane) badges.push(badgeMarkup(data.cardWorker));
       if (data.cardTags) badges.push(badgeMarkup(data.cardTags));
@@ -433,6 +452,30 @@
         event.stopPropagation();
         toggleColumnSort(columnSortButton);
         return;
+      }
+
+      const openCreateTaskButton = event.target.closest('.js-open-create-task-modal');
+      if (openCreateTaskButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        openCreateTaskModal();
+        return;
+      }
+
+      if (event.target.closest('.js-close-create-task-modal')) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeCreateTaskModal();
+        return;
+      }
+
+      const createTaskModalElement = createTaskModal();
+      if (createTaskModalElement && !createTaskModalElement.classList.contains('hidden')) {
+        const panel = createTaskModalPanel();
+        if (panel && !panel.contains(event.target) && !event.target.closest('.js-open-create-task-modal')) {
+          closeCreateTaskModal();
+          return;
+        }
       }
 
       const archiveAllButton = event.target.closest('.js-archive-all-complete');
@@ -646,7 +689,7 @@
 
       // Close when clicking the backdrop or the outer modal container (not inside the card panel)
       if (!modal.classList.contains('hidden')) {
-        const cardPanel = modal.querySelector('.w-full.max-w-3xl');
+        const cardPanel = modal.querySelector('.max-w-5xl');
         if (cardPanel && !cardPanel.contains(event.target)) {
           closeModal();
         }
@@ -654,12 +697,20 @@
     });
 
     document.addEventListener('keydown', (event) => {
-      if (modal.classList.contains('hidden')) return;
+      const createTaskModalElement = createTaskModal();
       if (event.key === 'Escape') {
-        closeModal();
-        return;
+        if (createTaskModalElement && !createTaskModalElement.classList.contains('hidden')) {
+          closeCreateTaskModal();
+          return;
+        }
+
+        if (!modal.classList.contains('hidden')) {
+          closeModal();
+          return;
+        }
       }
 
+      if (modal.classList.contains('hidden')) return;
       if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
 
       if (event.key === 'ArrowLeft') {

@@ -4,6 +4,7 @@ module MarvinQueue
   class Watchdog
     ROOT = Pathname.new('/home/ubuntu/.openclaw/workspace')
     MIN_NUDGE_MS = 5.minutes.in_milliseconds
+    BLANK_HEARTBEAT_TIMEOUT_MS = 5.minutes.in_milliseconds
     TIMEOUT_MS = 20.minutes.in_milliseconds
 
     def self.run
@@ -30,18 +31,20 @@ module MarvinQueue
         missing_heartbeat = heartbeat[:task].blank? || heartbeat[:task].casecmp('none').zero? || heartbeat[:task] == '(none)'
         stale_heartbeat = heartbeat[:mtime_ms].positive? && (now_ms - heartbeat[:mtime_ms] > MIN_NUDGE_MS)
         in_progress_since_ms = Time.zone.parse(card['in_progress_since'].to_s).to_f * 1000
+        blank_heartbeat_timed_out = missing_heartbeat && in_progress_since_ms.positive? && (now_ms - in_progress_since_ms >= BLANK_HEARTBEAT_TIMEOUT_MS)
         timed_out = in_progress_since_ms.positive? && (now_ms - in_progress_since_ms >= TIMEOUT_MS)
 
         # Check DB as ground truth: if card already has timed_out_at set, skip (already handled).
         # Don't rely solely on in-memory state which can be lost on restart/rotation.
         already_timed_out_in_db = KanbanCard.where(id: card['id']).where.not(timed_out_at: nil).exists?
 
-        if timed_out && card_state['timedOutAt'].blank? && !already_timed_out_in_db
+        if (timed_out || blank_heartbeat_timed_out) && card_state['timedOutAt'].blank? && !already_timed_out_in_db
           recommendation = timeout_recommendation(card, heartbeat)
           stop_lane_assignment(card['lane'])
           timeout_card!(card, heartbeat, recommendation)
           state['watchdog']['cards'][card['id'].to_s] = card_state.merge('lane' => card['lane'], 'timedOutAt' => now_ms)
-          log("timed out card ##{card['id']} lane=#{card['lane']}")
+          reason = timed_out ? 'timed out' : 'blank-heartbeat timed out'
+          log("#{reason} card ##{card['id']} lane=#{card['lane']}")
           next
         end
 

@@ -1,5 +1,6 @@
 require "base64"
 require "json"
+require "etc"
 require "net/http"
 require "open3"
 require "openssl"
@@ -14,27 +15,31 @@ class DashboardStatsService
   WORKSPACE_ROOT = Pathname.new("/home/ubuntu/.openclaw/workspace")
   EXTRA_PROFILES = WORKSPACE_ROOT.join("lobster-board/profiles-extra.json")
   SECRET_PROFILES = WORKSPACE_ROOT.join("lobster-board/profiles-secrets.json")
-  STATS_CACHE_KEY = "dashboard/stats/v1"
-  STATS_CACHE_TTL = 60.seconds
+  SUMMARY_CACHE_KEY = "dashboard/stats/summary/v1"
+  DETAILS_CACHE_KEY = "dashboard/stats/details/v1"
+  SUMMARY_CACHE_TTL = 10.seconds
+  DETAILS_CACHE_TTL = 60.seconds
+  CPU_SAMPLE_CACHE_KEY = "dashboard/stats/cpu_sample/v1"
 
   class << self
     def fetch
-      Rails.cache.fetch(STATS_CACHE_KEY, expires_in: STATS_CACHE_TTL) { new.fetch }
+      fetch_summary.merge(fetch_details)
+    end
+
+    def fetch_summary
+      Rails.cache.fetch(SUMMARY_CACHE_KEY, expires_in: SUMMARY_CACHE_TTL) { new.fetch_summary }
+    end
+
+    def fetch_details
+      Rails.cache.fetch(DETAILS_CACHE_KEY, expires_in: DETAILS_CACHE_TTL) { new.fetch_details }
     end
   end
 
-  def fetch
+  def fetch_summary
     mem_total = memory_total_bytes
     mem_free = memory_free_bytes
     mem_used = mem_total - mem_free
-    disk = disk_stats
-    status_text = safe_command("openclaw status")
-    session_store = load_session_store
-    per_agent_session_store = load_per_agent_session_store
-    profiles = load_profiles
-    lane_auth_truth = load_lane_auth_truth(per_agent_session_store)
-    profile_lane_map = build_profile_lane_map_from_truth(lane_auth_truth, profiles)
-    sessions = build_sessions(session_store)
+    sessions = build_sessions(load_session_store)
 
     {
       updatedAt: Time.current.iso8601,
@@ -45,9 +50,23 @@ class DashboardStatsService
         totalGb: bytes_to_gb(mem_total),
         percent: percent(mem_used, mem_total)
       },
-      disk: disk,
+      disk: disk_stats,
+      sessions: sessions
+    }
+  end
+
+  def fetch_details
+    status_text = safe_command("openclaw status")
+    session_store = load_session_store
+    per_agent_session_store = load_per_agent_session_store
+    profiles = load_profiles
+    lane_auth_truth = load_lane_auth_truth(per_agent_session_store)
+    profile_lane_map = build_profile_lane_map_from_truth(lane_auth_truth, profiles)
+    sessions = build_sessions(session_store)
+
+    {
+      updatedAt: Time.current.iso8601,
       channel: parse_channel(status_text),
-      sessions: sessions,
       topTokens: sessions.sort_by { |row| -token_percent(row[:tokens]) }.first(8),
       usageProfiles: build_usage_profiles(profiles, profile_lane_map),
       laneAuthTruth: lane_auth_truth,
@@ -63,17 +82,34 @@ class DashboardStatsService
   private
 
   def cpu_usage_percent
-    samples = []
-    2.times do
-      samples << cpu_sample
-      sleep 0.15 if samples.size == 1
-    end
+    current = cpu_sample_with_time
+    previous = Rails.cache.read(CPU_SAMPLE_CACHE_KEY)
+    Rails.cache.write(CPU_SAMPLE_CACHE_KEY, current, expires_in: 5.minutes)
 
-    total_delta = samples[1][:total] - samples[0][:total]
-    idle_delta = samples[1][:idle] - samples[0][:idle]
-    return 0.0 if total_delta <= 0
+    return load_average_cpu_fallback unless previous.is_a?(Hash)
+
+    total_delta = current[:total] - previous[:total].to_i
+    idle_delta = current[:idle] - previous[:idle].to_i
+    elapsed = current[:captured_at].to_f - previous[:captured_at].to_f
+
+    return load_average_cpu_fallback if total_delta <= 0 || elapsed <= 0
 
     (((total_delta - idle_delta).to_f / total_delta) * 100).round(1)
+  rescue StandardError
+    load_average_cpu_fallback
+  end
+
+  def cpu_sample_with_time
+    sample = cpu_sample
+    sample.merge(captured_at: Process.clock_gettime(Process::CLOCK_MONOTONIC))
+  end
+
+  def load_average_cpu_fallback
+    load, = File.read("/proc/loadavg").split
+    cpu_count = Etc.nprocessors
+    return 0.0 if cpu_count.to_i <= 0
+
+    ((load.to_f / cpu_count) * 100).round(1).clamp(0.0, 100.0)
   rescue StandardError
     0.0
   end

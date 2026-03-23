@@ -1,18 +1,132 @@
-<aside class="border-b border-slate-200 bg-slate-950 text-white lg:min-h-screen lg:border-b-0 lg:border-r">
-  <div class="px-6 py-6">
-    <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-300">Zevner Operations</p>
-    <h1 class="mt-2 text-3xl font-semibold tracking-[-0.04em]">Dash</h1>
-    <p class="mt-3 max-w-xs text-sm leading-6 text-slate-400">Operational overview for lanes, profiles, capacity, and session pressure.</p>
+<%
+  nav_items = [
+    ["Health", root_path],
+    ["Kanban board", kanban_path],
+    ["Projects", projects_path]
+  ]
+  active_item = nav_items.find { |(_, path)| current_page?(path) }
+%>
 
-    <nav class="mt-8 space-y-2 text-sm font-medium">
-      <%= link_to "Overview", root_path, class: "flex items-center justify-between rounded-2xl px-4 py-3 transition #{current_page?(root_path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}" %>
-      <%= link_to "Kanban board", kanban_path, class: "flex items-center justify-between rounded-2xl px-4 py-3 transition #{current_page?(kanban_path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}" %>
-      <%= link_to "Projects", projects_path, class: "flex items-center justify-between rounded-2xl px-4 py-3 transition #{current_page?(projects_path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}" %>
+<div class="lg:hidden border-b border-slate-200 bg-slate-950 text-white">
+  <div class="flex items-center justify-between gap-4 px-4 py-4 sm:px-6">
+    <div class="min-w-0">
+      <%= image_tag "zenver-logo.png", alt: "Zenver", class: "mb-3 h-12 w-auto pl-2" %>
+      <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-300">Zevner Operations</p>
+      <div class="mt-1 flex items-center gap-2">
+        <span class="truncate text-sm text-slate-400"><%= active_item&.first %></span>
+      </div>
+    </div>
+
+    <button
+      type="button"
+      class="js-mobile-nav-toggle inline-flex min-h-12 min-w-12 flex-none items-center justify-center rounded-2xl border border-white/15 bg-white/5 text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+      aria-controls="primary-sidebar"
+      aria-expanded="false"
+      aria-label="Open navigation menu"
+    >
+      <span class="pointer-events-none flex flex-col gap-1.5" aria-hidden="true">
+        <span class="block h-0.5 w-5 rounded-full bg-current"></span>
+        <span class="block h-0.5 w-5 rounded-full bg-current"></span>
+        <span class="block h-0.5 w-5 rounded-full bg-current"></span>
+      </span>
+    </button>
+  </div>
+</div>
+
+<div id="mobile-nav-backdrop" class="fixed inset-0 z-30 hidden bg-slate-950/55 backdrop-blur-sm lg:hidden" aria-hidden="true"></div>
+
+<aside id="primary-sidebar" class="fixed inset-y-0 left-0 z-40 w-[min(22rem,88vw)] -translate-x-full overflow-y-auto border-r border-slate-200 bg-slate-950 text-white shadow-2xl transition-transform duration-200 ease-out lg:static lg:z-auto lg:min-h-screen lg:w-auto lg:translate-x-0 lg:border-b-0">
+  <div class="flex items-center justify-between px-6 py-5 lg:hidden">
+    <div>
+      <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-300">Navigation</p>
+      <p class="mt-1 text-sm text-slate-400">Move between dashboard views.</p>
+    </div>
+    <button
+      type="button"
+      class="js-mobile-nav-close inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-white/5 text-2xl text-slate-300 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+      aria-label="Close navigation menu"
+    >×</button>
+  </div>
+
+  <div class="px-6 py-6 pt-2 lg:pt-6">
+    <%= image_tag "zenver-logo.png", alt: "Zenver", class: "mb-4 hidden h-14 w-auto pl-2 lg:block" %>
+    <p class="hidden text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-300 lg:block">Zevner Operations</p>
+    <p class="hidden max-w-xs text-sm leading-6 text-slate-400 lg:block">Operational overview for lanes, profiles, capacity, and session pressure.</p>
+
+    <nav class="space-y-2 text-sm font-medium lg:mt-8" aria-label="Primary">
+      <% nav_items.each do |label, path| %>
+        <%= link_to label, path, class: "flex min-h-12 items-center justify-between rounded-2xl px-4 py-3 transition #{current_page?(path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}" %>
+      <% end %>
     </nav>
 
-    <div class="mt-8 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+    <div class="mt-6 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300 lg:mt-8">
       <div class="text-xs uppercase tracking-[0.24em] text-slate-400">Last refresh</div>
-      <div id="updated" class="mt-2 font-medium text-white"><%= updated_at.strftime('%Y-%m-%d %H:%M:%S UTC') %></div>
+      <div id="updated" class="mt-2 break-words font-medium text-white"><%= updated_at.strftime('%Y-%m-%d %H:%M:%S UTC') %></div>
     </div>
   </div>
 </aside>
+
+<script>
+  (() => {
+    const sidebar = document.getElementById('primary-sidebar');
+    const backdrop = document.getElementById('mobile-nav-backdrop');
+    const openButtons = Array.from(document.querySelectorAll('.js-mobile-nav-toggle'));
+    const closeButtons = Array.from(document.querySelectorAll('.js-mobile-nav-close'));
+    const mobileBreakpoint = window.matchMedia('(min-width: 1024px)');
+
+    if (!sidebar || !backdrop || !openButtons.length) return;
+
+    const setOpenState = (isOpen) => {
+      sidebar.classList.toggle('-translate-x-full', !isOpen);
+      backdrop.classList.toggle('hidden', !isOpen);
+      document.documentElement.classList.toggle('overflow-hidden', isOpen);
+
+      openButtons.forEach((button) => {
+        button.setAttribute('aria-expanded', String(isOpen));
+        button.setAttribute('aria-label', isOpen ? 'Close navigation menu' : 'Open navigation menu');
+      });
+    };
+
+    const closeMenu = () => setOpenState(false);
+    const openMenu = () => setOpenState(true);
+
+    openButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const isOpen = button.getAttribute('aria-expanded') === 'true';
+        setOpenState(!isOpen);
+      });
+    });
+
+    closeButtons.forEach((button) => button.addEventListener('click', closeMenu));
+    backdrop.addEventListener('click', closeMenu);
+
+    sidebar.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => {
+        if (!mobileBreakpoint.matches) closeMenu();
+      });
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeMenu();
+    });
+
+    const syncDesktopState = (event) => {
+      if (event.matches) {
+        backdrop.classList.add('hidden');
+        sidebar.classList.remove('-translate-x-full');
+        document.documentElement.classList.remove('overflow-hidden');
+        openButtons.forEach((button) => button.setAttribute('aria-expanded', 'false'));
+      } else {
+        sidebar.classList.add('-translate-x-full');
+      }
+    };
+
+    if (mobileBreakpoint.addEventListener) {
+      mobileBreakpoint.addEventListener('change', syncDesktopState);
+    } else if (mobileBreakpoint.addListener) {
+      mobileBreakpoint.addListener(syncDesktopState);
+    }
+
+    syncDesktopState(mobileBreakpoint);
+  })();
+</script>

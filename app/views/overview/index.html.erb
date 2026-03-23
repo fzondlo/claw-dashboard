@@ -1,3 +1,5 @@
+<% content_for :title, "System Health Overview" %>
+
 <div class="min-h-screen bg-slate-100 text-slate-900 lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
   <%= render "layouts/sidebar", updated_at: @updated_at %>
 
@@ -5,8 +7,8 @@
     <section id="overview">
       <div class="flex flex-col gap-3 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p class="text-sm font-medium text-sky-700">DevOps stats</p>
-          <h2 class="mt-1 text-3xl font-semibold tracking-[-0.04em] text-slate-950">DevOps dashboard</h2>
+          <p class="text-sm font-medium text-sky-700">System health</p>
+          <h2 class="mt-1 text-3xl font-semibold tracking-[-0.04em] text-slate-950">System Health Overview</h2>
           <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-600">Operational visibility for lanes, profiles, capacity, and session pressure.</p>
         </div>
       </div>
@@ -130,12 +132,20 @@
   const pill = (text, cls) => `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${cls}">${text}</span>`;
   const td = 'py-3 pr-4 align-top';
 
-  async function refreshOverview() {
-    const response = await fetch('/api/stats', { cache: 'no-store' });
+  const profileLabel = (profileId, model) => {
+    if ((profileId || '').startsWith('google:')) return (model || '').startsWith('google/') ? model.replace(/^google\//, 'Gemini ') : ((model && model !== 'unknown') ? `Gemini ${model}` : 'Gemini');
+    if ((profileId || '').startsWith('custom-api-deepseek-com/')) return `DeepSeek ${String(profileId).split('/').slice(1).join('/')}`;
+    return profileId || '—';
+  };
+
+  async function fetchJson(url) {
+    const response = await fetch(url, { cache: 'no-store' });
     const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `Failed to load ${url}`);
+    return data;
+  }
 
-    if (!response.ok) throw new Error(data.error || 'Failed to load overview stats');
-
+  function renderSummary(data) {
     cpu.textContent = `${data.cpuPercent}%`;
     mem.textContent = `${data.memory.percent}%`;
     memsub.textContent = `${data.memory.usedGb} / ${data.memory.totalGb} GB`;
@@ -143,7 +153,9 @@
     disksub.textContent = `used ${data.disk.used} · free ${data.disk.avail}`;
     sess.textContent = data.sessions.length;
     updated.textContent = new Date(data.updatedAt).toLocaleString();
+  }
 
+  function renderDetails(data) {
     profileRows.innerHTML = (data.usageProfiles || []).map((profile, index) => {
       const live = (profile.swimlanes || []).length > 0;
       const status = live
@@ -161,12 +173,6 @@
         <td class="${td} text-slate-600">${(profile.swimlanes || []).length ? profile.swimlanes.map((lane) => `<div>${lane.name}</div>`).join('') : '<span class="text-slate-400">—</span>'}</td>
       </tr>`;
     }).join('');
-
-    const profileLabel = (profileId, model) => {
-      if ((profileId || '').startsWith('google:')) return (model || '').startsWith('google/') ? model.replace(/^google\//, 'Gemini ') : ((model && model !== 'unknown') ? `Gemini ${model}` : 'Gemini');
-      if ((profileId || '').startsWith('custom-api-deepseek-com/')) return `DeepSeek ${String(profileId).split('/').slice(1).join('/')}`;
-      return profileId || '—';
-    };
 
     laneAuthRows.innerHTML = (data.laneAuthTruth || []).map((row) => {
       const modeCls = row.status === 'pinned'
@@ -198,6 +204,12 @@
       <td class="${td} text-slate-500">${session.age}</td>
       <td class="${td} text-slate-600">${session.tokens}</td>
     </tr>`).join('');
+  }
+
+  async function refreshOverview() {
+    const summaryPromise = fetchJson('/api/stats/summary').then(renderSummary);
+    const detailsPromise = fetchJson('/api/stats/details').then(renderDetails);
+    await Promise.all([summaryPromise, detailsPromise]);
   }
 
   let refreshPending = false;

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_23_174600) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_23_195800) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -26,7 +26,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_23_174600) do
     t.string "lane"
     t.jsonb "metadata"
     t.text "notes"
-    t.string "priority"
     t.string "project"
     t.bigint "project_id"
     t.text "requeue_recommendation"

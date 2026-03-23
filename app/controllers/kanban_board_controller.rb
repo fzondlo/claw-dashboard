@@ -5,9 +5,28 @@ class KanbanBoardController < ApplicationController
   COLUMN_ORDER = %w[icebox queued in_progress ready_for_review complete].freeze
   HEARTBEAT_STALE_AFTER = 5.minutes
 
-  before_action :load_board!, only: %i[index board preview_v2 board_v2]
+  before_action :load_board!, only: %i[index create board preview_v2 board_v2]
 
   def index
+  end
+
+  def create
+    @new_card = build_manual_card
+
+    if @new_card.save
+      if request.xhr? || request.format.json?
+        render json: { ok: true, id: @new_card.id, status: @new_card.status }, status: :created
+      else
+        redirect_to kanban_path(project_id: @selected_project.presence), notice: "Task ##{@new_card.display_task_id} created."
+      end
+    else
+      if request.xhr? || request.format.json?
+        render json: { error: @new_card.errors.full_messages.to_sentence }, status: :unprocessable_entity
+      else
+        flash.now[:alert] = @new_card.errors.full_messages.to_sentence
+        render :index, status: :unprocessable_entity
+      end
+    end
   end
 
   def board
@@ -179,6 +198,7 @@ class KanbanBoardController < ApplicationController
     @selected_project = params[:project_id].to_s.presence
     @project_options = Project.ordered.to_a
     @selected_project_name = selected_project_name
+    @new_card ||= build_manual_card(default_project_id: @selected_project)
 
     @columns = {
       'icebox' => filtered_manual_cards('icebox'),
@@ -241,7 +261,6 @@ class KanbanBoardController < ApplicationController
         project: project,
         lane: manual_card&.lane.presence || lane_label,
         worker: manual_card&.worker.presence || lane_label,
-        priority: manual_card&.priority.presence || 'Normal',
         description: manual_card&.description.presence || task,
         status: 'in_progress',
         tags: manual_card&.tag_list || [],
@@ -394,5 +413,25 @@ class KanbanBoardController < ApplicationController
     end
 
     timestamps.max || Time.current
+  end
+
+  def build_manual_card(default_project_id: nil)
+    attrs = manual_card_params.to_h
+    project_id = attrs.delete('project_id').presence || default_project_id.presence
+
+    KanbanCard.new(
+      title: attrs['title'],
+      description: attrs['description'],
+      notes: attrs['notes'],
+      status: attrs['status'].presence_in(%w[queued icebox]) || 'queued',
+      active: true,
+      project_id: project_id
+    )
+  end
+
+  def manual_card_params
+    return ActionController::Parameters.new.permit! unless params[:kanban_card]
+
+    params.require(:kanban_card).permit(:title, :description, :notes, :status, :project_id)
   end
 end

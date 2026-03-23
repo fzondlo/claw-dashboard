@@ -7,8 +7,7 @@ class ArchivedTasksController < ApplicationController
       projects: archived_project_options(base_scope),
       statuses: base_scope.where.not(status: [nil, '']).distinct.order(:status).pluck(:status),
       lanes: base_scope.where.not(lane: [nil, '']).distinct.order(:lane).pluck(:lane),
-      workers: base_scope.where.not(worker: [nil, '']).distinct.order(:worker).pluck(:worker),
-      priorities: base_scope.where.not(priority: [nil, '']).distinct.order(:priority).pluck(:priority)
+      workers: base_scope.where.not(worker: [nil, '']).distinct.order(:worker).pluck(:worker)
     }
 
     @filters = filter_params.to_h.symbolize_keys
@@ -22,7 +21,7 @@ class ArchivedTasksController < ApplicationController
   private
 
   def filter_params
-    params.permit(:query, :project_id, :status, :lane, :worker, :priority, :outcome, :archived_from, :archived_to)
+    params.permit(:query, :project_id, :status, :lane, :worker, :outcome, :archived_from, :archived_to)
   end
 
   def apply_filters(scope)
@@ -40,7 +39,6 @@ class ArchivedTasksController < ApplicationController
     filtered = filtered.where(status: @filters[:status]) if @filters[:status].present?
     filtered = filtered.where(lane: @filters[:lane]) if @filters[:lane].present?
     filtered = filtered.where(worker: @filters[:worker]) if @filters[:worker].present?
-    filtered = filtered.where(priority: @filters[:priority]) if @filters[:priority].present?
 
     case @filters[:outcome]
     when 'timed_out'

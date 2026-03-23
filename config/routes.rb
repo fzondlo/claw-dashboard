@@ -1,7 +1,10 @@
 Rails.application.routes.draw do
   root "overview#index"
   get "/api/stats", to: "overview#stats"
+  get "/api/stats/summary", to: "overview#summary"
+  get "/api/stats/details", to: "overview#details"
   get "/kanban", to: "kanban_board#index"
+  post "/kanban/cards", to: "kanban_board#create", as: :kanban_cards
   get "/kanban-v2", to: "kanban_board#preview_v2", as: :kanban_v2
   get "/kanban-v2/live-board", to: "kanban_board#board_v2", as: :live_kanban_board_v2
   get "/kanban/live-board", to: "kanban_board#board", as: :live_kanban_board

@@ -23,9 +23,11 @@
             <span class="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700"><%= project.status %></span>
           </div>
           <p class="mt-4 text-sm leading-6 text-slate-600"><%= project.description %></p>
-          <div class="mt-5">
-            <%= link_to project.link_label, project.url, class: "inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800", target: "_blank", rel: "noopener noreferrer" %>
-          </div>
+          <% unless %w[dash-board openclaw].include?(project.slug) %>
+            <div class="mt-5">
+              <%= link_to project.link_label, project.url, class: "inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800", target: "_blank", rel: "noopener noreferrer" %>
+            </div>
+          <% end %>
         </article>
       <% end %>
     </section>

@@ -1,10 +1,10 @@
 <div id="kanban-live-sections">
-  <section class="mt-6 overflow-hidden rounded-[2rem] border border-slate-200/70 bg-white shadow-[0_24px_80px_-42px_rgba(15,23,42,0.45)]">
+  <section class="mt-5 overflow-hidden rounded-[1.5rem] border border-slate-200/70 bg-white shadow-[0_24px_80px_-42px_rgba(15,23,42,0.45)] sm:mt-6 sm:rounded-[2rem]">
     <div class="border-b border-slate-100 px-5 py-4 sm:px-6" data-live-region="project-filter">
-      <%= form_with url: kanban_path, method: :get, local: true, class: 'flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between', html: { id: 'kanban-project-filter-form' } do |f| %>
+      <%= form_with url: kanban_path, method: :get, local: true, class: 'flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between', html: { id: 'kanban-project-filter-form' } do |f| %>
         <div>
           <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Project scope</div>
-          <div class="mt-2 text-sm text-slate-600">Changing the project filter now updates the board immediately.</div>
+          <div class="mt-1 text-sm text-slate-600">Changing the project filter updates the board immediately.</div>
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
@@ -19,12 +19,14 @@
               </span>
             </span>
           </label>
-          <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600">Scope · <%= @selected_project_name %></span>
+          <button type="button" class="js-open-create-task-modal inline-flex items-center justify-center rounded-full border border-violet-300 bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition hover:bg-violet-700 hover:border-violet-400">
+            Create task
+          </button>
         </div>
       <% end %>
     </div>
 
-    <div class="grid gap-4 px-5 py-5 sm:px-6 xl:grid-cols-3">
+    <div class="grid gap-3 px-4 py-4 sm:gap-4 sm:px-6 sm:py-5 xl:grid-cols-3">
       <div class="rounded-[1.6rem] border border-slate-200 bg-slate-50 p-5" data-live-region="worker-density">
         <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Worker density</div>
         <div class="mt-4 flex flex-wrap gap-2">
@@ -83,6 +85,57 @@
       </div>
     </div>
   </section>
+
+  <div id="kanban-create-task-modal" class="fixed inset-0 z-50 <%= @new_card.errors.any? ? '' : 'hidden' %>" aria-hidden="<%= @new_card.errors.any? ? 'false' : 'true' %>">
+    <div class="js-create-task-modal-backdrop absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
+    <div class="relative flex min-h-full items-end justify-center p-2 sm:items-center sm:p-6">
+      <div class="js-create-task-modal-panel flex max-h-[calc(100vh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_40px_120px_-30px_rgba(15,23,42,0.55)] sm:max-h-[calc(100vh-3rem)]">
+        <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7 sm:py-6">
+          <div>
+            <div class="text-[11px] font-black uppercase tracking-[0.32em] text-violet-600">Manual task creation</div>
+            <h3 class="mt-2 text-2xl font-semibold leading-tight tracking-[-0.03em] text-slate-950 sm:text-[1.75rem]">Create a Kanban task</h3>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Same setup flow, cleaner presentation. Works well on desktop and mobile.</p>
+          </div>
+          <button type="button" class="js-close-create-task-modal inline-flex h-10 w-10 flex-none items-center justify-center rounded-full bg-slate-100 text-xl text-slate-400 transition hover:bg-slate-200 hover:text-slate-700" aria-label="Close create task modal">×</button>
+        </div>
+
+        <div class="min-h-0 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
+          <% if @new_card.errors.any? %>
+            <div class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+              <%= @new_card.errors.full_messages.to_sentence %>
+            </div>
+          <% end %>
+
+          <%= form_with model: @new_card, url: kanban_cards_path(project_id: @selected_project.presence), method: :post, local: true, class: 'grid gap-4 lg:grid-cols-2' do |f| %>
+            <div class="lg:col-span-2">
+              <%= f.label :title, 'Title', class: 'mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500' %>
+              <%= f.text_field :title, required: true, placeholder: 'Add manual task title', autofocus: true, class: 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100' %>
+            </div>
+
+            <div>
+              <%= f.label :project_id, 'Project', class: 'mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500' %>
+              <%= f.select :project_id, options_for_select([['No project', '']] + @project_options.map { |project| [project.name, project.id] }, @new_card.project_id), {}, class: 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100' %>
+            </div>
+
+            <div>
+              <%= f.label :status, 'Start in', class: 'mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500' %>
+              <%= f.select :status, options_for_select([['Queued', 'queued'], ['Icebox', 'icebox']], @new_card.status.presence || 'queued'), {}, class: 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100' %>
+            </div>
+
+            <div class="lg:col-span-2">
+              <%= f.label :description, 'Description (Markdown)', class: 'mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500' %>
+              <%= f.text_area :description, rows: 7, placeholder: "## Goal\n\n- Add the task\n- Keep raw Markdown in storage", class: 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100' %>
+            </div>
+
+            <div class="lg:col-span-2 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p class="text-xs leading-5 text-slate-500">Description stays markdown-first. Initial activity has been removed.</p>
+              <%= f.submit 'Create task', class: 'inline-flex items-center justify-center rounded-2xl border border-violet-300 bg-violet-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition hover:bg-violet-700' %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <%= render 'board' %>
 </div>

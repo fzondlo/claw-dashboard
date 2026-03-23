@@ -68,7 +68,6 @@ module MarvinQueue
           'summary' => card.summary.to_s,
           'notes' => card.notes.to_s,
           'project_name' => card.project&.name.to_s,
-          'priority' => (card.priority.presence || 'Normal'),
           'timeout_recommendation' => card.timeout_recommendation.to_s
         }
       end
@@ -104,7 +103,6 @@ module MarvinQueue
       message = [
         "Dash kanban card ##{card['id']}: #{card['title']}",
         ("Project: #{card['project_name']}" if card['project_name'].present?),
-        "Priority: #{card['priority']}",
         ("Summary: #{card['summary']}" if card['summary'].present?),
         ("Notes: #{card['notes']}" if card['notes'].present?),
         ("Timeout recommendation for this retry: #{card['timeout_recommendation']}" if card['timeout_recommendation'].present?),
@@ -115,6 +113,8 @@ module MarvinQueue
         'Immediately update your own lane heartbeat using the exact lane path above.',
         "The board should stay in 'in_progress' while you work.",
         'When done, default to ready_for_review and include at least one QA URL in review_notes.',
+        'If this card is a research / recommendation / strategy task, put the actual answer directly into the card activity so Frank can read it in the modal. Do not only write a generic done/QA-link update.',
+        'When you put substantive notes or research into card activity, write clean readable Markdown (headings, paragraphs, lists) so the modal renders it nicely and it is easy to review.',
         'If there is any durable lesson/decision worth keeping, append one concise bullet to this memory file before you finish: ' + memory_path,
         'As soon as you finish and update the card, clear your own heartbeat file back to Active task: (none).',
         'This task is running in an isolated non-main worker session with light context and a minimal worker bootstrap. Do not assume prior chat history.',

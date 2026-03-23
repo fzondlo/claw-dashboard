@@ -70,7 +70,6 @@ kanban_seed = {
       project_name: "DevOps",
       lane: "Pixi 7",
       worker: "Unassigned",
-      priority: "High",
       description: "Validate the DeepSeek switch survives runtime reloads and reflects live dashboard state.",
       tags: %w[auth runtime]
     },
@@ -80,7 +79,6 @@ kanban_seed = {
       project_name: "DevOps",
       lane: "Shared",
       worker: "Unassigned",
-      priority: "Medium",
       description: "Review stale Telegram and cron sessions that may be creating noise in the dashboard.",
       tags: %w[dashboard sessions]
     }
