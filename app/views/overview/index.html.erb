@@ -1,0 +1,216 @@
+<div class="min-h-screen bg-slate-100 text-slate-900 lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
+  <%= render "layouts/sidebar", updated_at: @updated_at %>
+
+  <main class="px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+    <section id="overview">
+      <div class="flex flex-col gap-3 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p class="text-sm font-medium text-sky-700">OpenClaw stats</p>
+          <h2 class="mt-1 text-3xl font-semibold tracking-[-0.04em] text-slate-950">OpenClaw dashboard</h2>
+          <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-600">Operational visibility for lanes, profiles, capacity, and session pressure.</p>
+        </div>
+      </div>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+        <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">CPU</div>
+          <div id="cpu" class="mt-3 text-4xl font-semibold tracking-[-0.04em] text-slate-950">—</div>
+          <div class="mt-2 text-sm text-slate-500">Host usage</div>
+        </div>
+        <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Memory</div>
+          <div id="mem" class="mt-3 text-4xl font-semibold tracking-[-0.04em] text-slate-950">—</div>
+          <div id="memsub" class="mt-2 text-sm text-slate-500">—</div>
+        </div>
+        <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Disk</div>
+          <div id="disk" class="mt-3 text-4xl font-semibold tracking-[-0.04em] text-slate-950">—</div>
+          <div id="disksub" class="mt-2 text-sm text-slate-500">—</div>
+        </div>
+        <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Sessions</div>
+          <div id="sess" class="mt-3 text-4xl font-semibold tracking-[-0.04em] text-slate-950">—</div>
+          <div class="mt-2 text-sm text-slate-500">Tracked active sessions</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="profiles" class="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-slate-950">OpenAI profiles</h2>
+          <p class="mt-1 text-sm text-slate-500">Usage visibility and active lane attachment, without the clutter.</p>
+        </div>
+        <div class="text-xs font-medium uppercase tracking-[0.24em] text-slate-400">Accounts</div>
+      </div>
+      <div class="mt-5 overflow-x-auto">
+        <table class="min-w-full text-left text-sm">
+          <thead class="border-b border-slate-200 text-slate-500">
+            <tr>
+              <th class="pb-3 pr-4 font-medium">#</th>
+              <th class="pb-3 pr-4 font-medium">Status</th>
+              <th class="pb-3 pr-4 font-medium">Email</th>
+              <th class="pb-3 pr-4 font-medium">5h</th>
+              <th class="pb-3 pr-4 font-medium">Week</th>
+              <th class="pb-3 pr-4 font-medium">Swimlanes</th>
+            </tr>
+          </thead>
+          <tbody id="profileRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="lanes" class="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div>
+        <h2 class="text-xl font-semibold text-slate-950">Lane auth truth</h2>
+        <p class="mt-1 text-sm text-slate-500">Pinned session profile, configured fallback, and last-used view in one place.</p>
+      </div>
+      <div class="mt-5 overflow-x-auto">
+        <table class="min-w-full text-left text-sm">
+          <thead class="border-b border-slate-200 text-slate-500">
+            <tr>
+              <th class="pb-3 pr-4 font-medium">Lane</th>
+              <th class="pb-3 pr-4 font-medium">Live profile</th>
+              <th class="pb-3 pr-4 font-medium">Configured default</th>
+              <th class="pb-3 pr-4 font-medium">Observed last-used</th>
+              <th class="pb-3 pr-4 font-medium">Mode</th>
+              <th class="pb-3 pr-4 font-medium">Seen</th>
+            </tr>
+          </thead>
+          <tbody id="laneAuthRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="mt-8 grid gap-6 xl:grid-cols-2">
+      <div id="context" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div>
+          <h2 class="text-xl font-semibold text-slate-950">Swimlane context</h2>
+          <p class="mt-1 text-sm text-slate-500">Quick pressure read across lanes.</p>
+        </div>
+        <div class="mt-5 overflow-x-auto">
+          <table class="min-w-full text-left text-sm">
+            <thead class="border-b border-slate-200 text-slate-500">
+              <tr>
+                <th class="pb-3 pr-4 font-medium">Lane</th>
+                <th class="pb-3 pr-4 font-medium">Model</th>
+                <th class="pb-3 pr-4 font-medium">Context</th>
+                <th class="pb-3 pr-4 font-medium">Used</th>
+              </tr>
+            </thead>
+            <tbody id="laneRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="sessions" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div>
+          <h2 class="text-xl font-semibold text-slate-950">Top token usage</h2>
+          <p class="mt-1 text-sm text-slate-500">Highest-pressure sessions first.</p>
+        </div>
+        <div class="mt-5 overflow-x-auto">
+          <table class="min-w-full text-left text-sm">
+            <thead class="border-b border-slate-200 text-slate-500">
+              <tr>
+                <th class="pb-3 pr-4 font-medium">Session</th>
+                <th class="pb-3 pr-4 font-medium">Kind</th>
+                <th class="pb-3 pr-4 font-medium">Age</th>
+                <th class="pb-3 pr-4 font-medium">Tokens</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  const pill = (text, cls) => `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${cls}">${text}</span>`;
+  const td = 'py-3 pr-4 align-top';
+
+  async function refreshOverview() {
+    const response = await fetch('/api/stats', { cache: 'no-store' });
+    const data = await response.json();
+
+    if (!response.ok) throw new Error(data.error || 'Failed to load overview stats');
+
+    cpu.textContent = `${data.cpuPercent}%`;
+    mem.textContent = `${data.memory.percent}%`;
+    memsub.textContent = `${data.memory.usedGb} / ${data.memory.totalGb} GB`;
+    disk.textContent = data.disk.percent;
+    disksub.textContent = `used ${data.disk.used} · free ${data.disk.avail}`;
+    sess.textContent = data.sessions.length;
+    updated.textContent = new Date(data.updatedAt).toLocaleString();
+
+    profileRows.innerHTML = (data.usageProfiles || []).map((profile, index) => {
+      const live = (profile.swimlanes || []).length > 0;
+      const status = live
+        ? ['Live', 'bg-emerald-100 text-emerald-700']
+        : profile.storedOnly
+          ? ['Stored', 'bg-amber-100 text-amber-700']
+          : ['Idle', 'bg-slate-100 text-slate-600'];
+
+      return `<tr class="border-b border-slate-100 ${live ? 'bg-emerald-50/60' : ''}">
+        <td class="${td} text-slate-500">${index + 1}</td>
+        <td class="${td}">${pill(status[0], status[1])}</td>
+        <td class="${td}"><div class="font-medium text-slate-900">${profile.email}</div><div class="mt-1 text-xs text-slate-400">${profile.profileId}</div></td>
+        <td class="${td} text-slate-600">${profile.todayLeft != null ? `${profile.todayLeft}% · ${profile.todayReset || '—'}` : (profile.storedOnly ? 'stored only' : '—')}</td>
+        <td class="${td} text-slate-600">${profile.weekLeft != null ? `${profile.weekLeft}% · ${profile.weekReset || '—'}` : (profile.storedOnly ? 'stored only' : '—')}</td>
+        <td class="${td} text-slate-600">${(profile.swimlanes || []).length ? profile.swimlanes.map((lane) => `<div>${lane.name}</div>`).join('') : '<span class="text-slate-400">—</span>'}</td>
+      </tr>`;
+    }).join('');
+
+    const profileLabel = (profileId, model) => {
+      if ((profileId || '').startsWith('google:')) return (model || '').startsWith('google/') ? model.replace(/^google\//, 'Gemini ') : ((model && model !== 'unknown') ? `Gemini ${model}` : 'Gemini');
+      if ((profileId || '').startsWith('custom-api-deepseek-com/')) return `DeepSeek ${String(profileId).split('/').slice(1).join('/')}`;
+      return profileId || '—';
+    };
+
+    laneAuthRows.innerHTML = (data.laneAuthTruth || []).map((row) => {
+      const modeCls = row.status === 'pinned'
+        ? 'bg-emerald-100 text-emerald-700'
+        : row.status === 'configured'
+          ? 'bg-sky-100 text-sky-700'
+          : 'bg-slate-100 text-slate-600';
+      const seen = row.updatedAt ? new Date(row.updatedAt).toLocaleString() : '—';
+      return `<tr class="border-b border-slate-100">
+        <td class="${td} font-medium text-slate-900">${row.lane}</td>
+        <td class="${td}"><div class="font-mono text-xs text-slate-800">${profileLabel(row.liveProfile, row.model)}</div></td>
+        <td class="${td}"><div class="font-mono text-xs text-slate-500">${profileLabel(row.configuredProfile, row.model)}</div></td>
+        <td class="${td}"><div class="font-mono text-xs text-slate-400">${profileLabel(row.lastUsedProfile, row.model)}</div></td>
+        <td class="${td}">${pill(row.status.toUpperCase(), modeCls)}</td>
+        <td class="${td} text-slate-500">${seen}</td>
+      </tr>`;
+    }).join('');
+
+    laneRows.innerHTML = (data.laneContexts || []).map((lane) => `<tr class="border-b border-slate-100">
+      <td class="${td} font-medium text-slate-900">${lane.name}</td>
+      <td class="${td} text-slate-600">${lane.model}</td>
+      <td class="${td} text-slate-600">${lane.percent}%</td>
+      <td class="${td} text-slate-500">${lane.used} / ${lane.max}</td>
+    </tr>`).join('');
+
+    rows.innerHTML = (data.topTokens || []).map((session) => `<tr class="border-b border-slate-100">
+      <td class="${td} text-slate-700">${session.key}</td>
+      <td class="${td} text-slate-500">${session.kind}</td>
+      <td class="${td} text-slate-500">${session.age}</td>
+      <td class="${td} text-slate-600">${session.tokens}</td>
+    </tr>`).join('');
+  }
+
+  let refreshPending = false;
+  function scheduleRefresh() {
+    if (refreshPending) return;
+    refreshPending = true;
+    refreshOverview().catch((error) => {
+      console.error(error);
+    }).finally(() => {
+      refreshPending = false;
+    });
+  }
+
+  scheduleRefresh();
+  setInterval(scheduleRefresh, 5000);
+</script>

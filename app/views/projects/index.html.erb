@@ -15,17 +15,16 @@
 
     <section class="mt-8 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
       <% @projects.each do |project| %>
-        <article id="<%= project[:slug] %>" class="rounded-[1.75rem] border border-white/70 bg-white/70 p-6 ring-1 ring-slate-200/60 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70">
+        <article id="<%= project.slug %>" class="rounded-[1.75rem] border border-white/70 bg-white/70 p-6 ring-1 ring-slate-200/60 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70">
           <div class="flex items-start justify-between gap-3">
             <div>
-              <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700"><%= project[:repo] %></p>
-              <h3 class="mt-2 text-xl font-semibold tracking-[-0.03em] text-slate-950"><%= project[:name] %></h3>
+              <h3 class="text-xl font-semibold tracking-[-0.03em] text-slate-950"><%= project.name %></h3>
             </div>
-            <span class="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700"><%= project[:status] %></span>
+            <span class="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700"><%= project.status %></span>
           </div>
-          <p class="mt-4 text-sm leading-6 text-slate-600"><%= project[:description] %></p>
+          <p class="mt-4 text-sm leading-6 text-slate-600"><%= project.description %></p>
           <div class="mt-5">
-            <%= link_to project[:link_label], project[:url], class: "inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800", target: "_blank", rel: "noopener noreferrer" %>
+            <%= link_to project.link_label, project.url, class: "inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800", target: "_blank", rel: "noopener noreferrer" %>
           </div>
         </article>
       <% end %>

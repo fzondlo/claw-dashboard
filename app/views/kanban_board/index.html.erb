@@ -1,0 +1,572 @@
+<%
+  selected_project_name = if @selected_project == 'none'
+    KanbanCard::NO_PROJECT
+  elsif @selected_project.present?
+    @project_options.find { |project| project.id.to_s == @selected_project.to_s }&.name || 'Selected project'
+  else
+    'All projects'
+  end
+%>
+
+<div class="min-h-screen bg-slate-100 text-slate-900 lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
+  <%= render "layouts/sidebar", updated_at: @updated_at %>
+
+  <main class="bg-gradient-to-br from-slate-100 via-white to-slate-200/80 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+    <div class="flex flex-col gap-4 border-b border-slate-200/80 pb-6 xl:flex-row xl:items-end xl:justify-between">
+      <div>
+        <p class="text-sm font-medium text-sky-700">Worker activity</p>
+        <h2 class="mt-1 text-3xl font-semibold tracking-[-0.04em] text-slate-950">Kanban board</h2>
+        <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-600">Prototype A is now the live board. Filters, live heartbeat lanes, review links, archive actions, and review-modal flow stay intact.</p>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <%= link_to 'Archived tasks', archive_path, class: 'inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50' %>
+        <%= link_to 'Preview route', kanban_v2_path(project_id: @selected_project.presence), class: 'inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50' %>
+      </div>
+    </div>
+
+    <section class="mt-6 overflow-hidden rounded-[2rem] border border-slate-200/70 bg-white shadow-[0_24px_80px_-42px_rgba(15,23,42,0.45)]">
+      <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
+        <%= form_with url: kanban_path, method: :get, local: true, class: 'flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between', html: { id: 'kanban-project-filter-form' } do |f| %>
+          <div>
+            <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Project scope</div>
+            <div class="mt-2 text-sm text-slate-600">Changing the project filter now updates the board immediately.</div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="inline-flex items-center gap-3 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 shadow-sm shadow-sky-100/50">
+              <span class="pl-1">Project</span>
+              <span class="relative inline-flex items-center">
+                <%= f.select :project_id, options_for_select([['All projects', '']] + @project_options.map { |project| [project.name, project.id] } + [[KanbanCard::NO_PROJECT, 'none']], @selected_project), {}, class: 'appearance-none rounded-full border border-sky-200 bg-white pl-4 pr-10 py-2 text-sm font-semibold text-sky-950 focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-100', data: { auto_submit: true } %>
+                <span class="pointer-events-none absolute right-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-50 text-sky-700 ring-1 ring-sky-100">
+                  <svg viewBox="0 0 20 20" fill="none" class="h-3.5 w-3.5" aria-hidden="true">
+                    <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+              </span>
+            </label>
+            <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600">Scope · <%= selected_project_name %></span>
+          </div>
+        <% end %>
+      </div>
+
+      <div class="grid gap-4 px-5 py-5 sm:px-6 xl:grid-cols-3">
+        <div class="rounded-[1.6rem] border border-slate-200 bg-slate-50 p-5">
+          <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Worker density</div>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <span class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+              <span class="h-2 w-2 rounded-full bg-slate-400"></span>
+              <%= @workers.size %> Workers
+            </span>
+            <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+              <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+              <%= @workers.count { |w| w[:active] } %> Active
+            </span>
+            <span class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
+              <span class="h-2 w-2 rounded-full bg-blue-500"></span>
+              <%= @workers.count { |w| !w[:active] } %> Idle
+            </span>
+          </div>
+        </div>
+        <div class="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">Project summary</div>
+          <div class="mt-4 space-y-3 text-sm text-slate-600">
+            <div class="flex items-center justify-between rounded-2xl bg-slate-100 px-4 py-3"><span>Total cards</span><span class="font-semibold text-slate-900"><%= KanbanBoardController::COLUMN_ORDER.sum { |key| @columns.fetch(key).size } %></span></div>
+            <div class="flex items-center justify-between rounded-2xl bg-sky-50 px-4 py-3"><span>In progress</span><span class="font-semibold text-sky-800"><%= @columns.fetch('in_progress').size %></span></div>
+          </div>
+        </div>
+        <div class="rounded-[1.6rem] border border-dashed border-slate-300 bg-white/70 p-5">
+          <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Active workers</div>
+          <div class="mt-4 flex flex-wrap gap-1.5">
+            <% @workers.select { |w| w[:active] }.each do |worker| %>
+              <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800" title="<%= worker[:task] %>"><%= worker[:name] %></span>
+            <% end %>
+            <% if @workers.none? { |w| w[:active] } %>
+              <span class="text-sm italic text-slate-400">No active workers</span>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <%= render 'board' %>
+  </main>
+</div>
+
+<div id="kanban-card-modal" class="fixed inset-0 z-50 hidden" aria-hidden="true">
+  <div class="js-card-modal-backdrop absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
+  <div class="relative flex min-h-full items-center justify-center p-4 sm:p-6">
+    <div class="w-full max-w-3xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_35px_120px_-35px_rgba(15,23,42,0.55)]">
+      <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+        <div>
+          <div id="kanban-card-modal-id" class="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700"></div>
+          <h3 id="kanban-card-modal-title" class="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-950"></h3>
+        </div>
+        <button type="button" class="js-close-card-modal inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-xl text-slate-500 transition hover:border-slate-300 hover:text-slate-700" aria-label="Close card details">×</button>
+      </div>
+
+      <div class="max-h-[80vh] overflow-y-auto px-5 py-5 sm:px-6">
+        <section id="kanban-card-modal-review-callout" class="hidden rounded-[1.75rem] border border-amber-300 bg-gradient-to-r from-amber-100 via-yellow-50 to-white p-5 shadow-[0_20px_60px_-35px_rgba(217,119,6,0.8)] ring-1 ring-amber-200/80">
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div class="text-[11px] font-black uppercase tracking-[0.32em] text-amber-700">Ready for review</div>
+              <h4 class="mt-2 text-xl font-semibold tracking-[-0.03em] text-amber-950">This task is waiting on QA right now.</h4>
+              <p class="mt-2 text-sm font-medium text-amber-900/80">Use ← / → to move through review tasks fast, or mark this one complete and jump to the next item.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" id="kanban-card-modal-prev" class="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-50">← Prev</button>
+              <button type="button" id="kanban-card-modal-next" class="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-50">Next →</button>
+              <button type="button" id="kanban-card-modal-mark-complete" class="inline-flex items-center justify-center rounded-xl border border-emerald-300 bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-emerald-200 disabled:bg-emerald-200">Mark complete</button>
+            </div>
+          </div>
+        </section>
+
+        <div class="mt-4 flex flex-wrap gap-2" id="kanban-card-modal-badges"></div>
+
+        <section id="kanban-card-modal-review-links" class="mt-4 hidden rounded-[1.5rem] border border-sky-200 bg-gradient-to-r from-sky-50 via-cyan-50 to-white p-4 shadow-sm shadow-sky-100/70">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">Review</div>
+              <p class="mt-1 text-sm font-medium text-slate-700">Open the latest review target for this task.</p>
+            </div>
+            <div id="kanban-card-modal-review-links-list" class="flex flex-wrap gap-2"></div>
+          </div>
+        </section>
+
+        <div id="kanban-card-modal-live" class="mt-4 hidden rounded-2xl bg-sky-50 px-4 py-3 text-sm font-medium text-sky-700 ring-1 ring-sky-100">Live worker task</div>
+
+        <div class="mt-6 grid gap-4 lg:grid-cols-2">
+          <section class="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4 lg:col-span-2">
+            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Description</div>
+            <div id="kanban-card-modal-description" class="markdown-body mt-2 text-sm leading-6 text-slate-700"></div>
+          </section>
+
+          <section class="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4">
+            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Activity</div>
+            <div id="kanban-card-modal-activity" class="mt-2 text-sm leading-6 text-slate-700"></div>
+          </section>
+
+          <section class="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4">
+            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Review focus</div>
+            <div id="kanban-card-modal-review-focus" class="markdown-body mt-2 text-sm leading-6 text-slate-700"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (() => {
+    const modal = document.getElementById('kanban-card-modal');
+    if (!modal) return;
+
+    const fields = {
+      id: document.getElementById('kanban-card-modal-id'),
+      title: document.getElementById('kanban-card-modal-title'),
+      badges: document.getElementById('kanban-card-modal-badges'),
+      description: document.getElementById('kanban-card-modal-description'),
+      activity: document.getElementById('kanban-card-modal-activity'),
+      reviewFocus: document.getElementById('kanban-card-modal-review-focus'),
+      reviewLinks: document.getElementById('kanban-card-modal-review-links'),
+      reviewLinksList: document.getElementById('kanban-card-modal-review-links-list'),
+      live: document.getElementById('kanban-card-modal-live'),
+      reviewCallout: document.getElementById('kanban-card-modal-review-callout'),
+      prev: document.getElementById('kanban-card-modal-prev'),
+      next: document.getElementById('kanban-card-modal-next'),
+      markComplete: document.getElementById('kanban-card-modal-mark-complete')
+    };
+
+    const fallbackText = '—';
+    const boardEndpoint = '<%= live_kanban_board_path(project_id: @selected_project) %>';
+    const pollIntervalMs = 15000;
+    let isRefreshingBoard = false;
+    let activeCardId = null;
+
+    const escapeHtml = (value) => {
+      const div = document.createElement('div');
+      div.textContent = value || '';
+      return div.innerHTML;
+    };
+
+    const badgeMarkup = (text, classes = 'border-slate-200 bg-slate-100 text-slate-700') => (
+      `<span class="inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${classes}">${escapeHtml(text)}</span>`
+    );
+
+    const reviewLinkMarkup = (url, primary = false) => {
+      const safeUrl = escapeHtml(url);
+      const classes = primary
+        ? 'border-sky-300 bg-sky-600 text-white hover:bg-sky-700 hover:border-sky-700'
+        : 'border-sky-200 bg-white text-sky-700 hover:bg-sky-50';
+
+      return `<a href="${safeUrl}" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${classes}">Review link ↗</a>`;
+    };
+
+    const modalButtons = () => Array.from(document.querySelectorAll('.js-open-card-modal'));
+    const reviewButtons = () => modalButtons().filter((button) => button.dataset.cardStatusKey === 'ready_for_review');
+    const findButtonByCardId = (cardId) => modalButtons().find((button) => button.dataset.cardId === String(cardId));
+    const findReviewButtonByCardId = (cardId) => reviewButtons().find((button) => button.dataset.cardId === String(cardId));
+
+    const adjacentButton = (direction = 1) => {
+      const buttons = modalButtons();
+      if (!buttons.length || !activeCardId) return null;
+
+      const index = buttons.findIndex((button) => button.dataset.cardId === String(activeCardId));
+      if (index === -1) return null;
+
+      return buttons[index + direction] || null;
+    };
+
+    const setReviewControls = (data) => {
+      const isReviewTask = data.cardStatusKey === 'ready_for_review';
+      const hasPrevious = Boolean(adjacentButton(-1));
+      const hasNext = Boolean(adjacentButton(1));
+
+      fields.reviewCallout.classList.toggle('hidden', !isReviewTask);
+      fields.prev.disabled = !hasPrevious;
+      fields.next.disabled = !hasNext;
+      fields.markComplete.disabled = !isReviewTask || !data.cardId;
+      fields.markComplete.dataset.cardId = data.cardId || '';
+    };
+
+    const openModal = (button) => {
+      const data = button.dataset;
+      activeCardId = data.cardId || null;
+      fields.id.textContent = `Task #${data.cardIdLabel || fallbackText}`;
+      fields.title.textContent = data.cardTitle || 'Untitled task';
+
+      const badges = [
+        badgeMarkup(data.cardProject || 'No project', 'border-sky-100 bg-sky-50 text-sky-700'),
+        badgeMarkup(data.cardStatus || 'Task', data.cardStatusKey === 'ready_for_review' ? 'border-amber-200 bg-amber-100 text-amber-800' : 'border-slate-200 bg-slate-100 text-slate-700')
+      ];
+
+      if (data.cardPriority) badges.push(badgeMarkup(data.cardPriority));
+      if (data.cardLane) badges.push(badgeMarkup(data.cardLane));
+      if (data.cardWorker && data.cardWorker !== data.cardLane) badges.push(badgeMarkup(data.cardWorker));
+      if (data.cardTags) badges.push(badgeMarkup(data.cardTags));
+
+      const reviewLinks = (data.cardReviewLinks || '')
+        .split('\n')
+        .map((url) => url.trim())
+        .filter(Boolean);
+
+      fields.badges.innerHTML = badges.join('');
+      fields.description.innerHTML = data.cardDescriptionHtml || '<p>—</p>';
+      fields.activity.innerHTML = data.cardActivityHtml || '<p>—</p>';
+      fields.reviewFocus.innerHTML = data.cardReviewFocusHtml || '<p>—</p>';
+      fields.reviewLinks.classList.toggle('hidden', reviewLinks.length === 0);
+      fields.reviewLinksList.innerHTML = reviewLinks.map((url, index) => reviewLinkMarkup(url, index === 0)).join('');
+      fields.live.classList.toggle('hidden', data.cardLive !== 'true');
+      setReviewControls(data);
+
+      modal.classList.remove('hidden');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+
+      // Push deep-link URL so the open card can be shared/bookmarked
+      if (activeCardId) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('card', activeCardId);
+        history.pushState({ cardId: activeCardId }, '', url.toString());
+      }
+    };
+
+    const closeModal = () => {
+      activeCardId = null;
+      modal.classList.add('hidden');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('overflow-hidden');
+
+      // Restore URL — remove the ?card= param
+      const url = new URL(window.location.href);
+      url.searchParams.delete('card');
+      history.pushState({}, '', url.toString());
+    };
+
+    const boardContainer = () => document.getElementById('kanban-board');
+
+    const replaceBoard = (html) => {
+      const currentBoard = boardContainer();
+      if (!currentBoard) return;
+
+      const template = document.createElement('template');
+      template.innerHTML = html.trim();
+      const nextBoard = template.content.firstElementChild;
+      if (!nextBoard) return;
+
+      currentBoard.replaceWith(nextBoard);
+    };
+
+    const refreshBoard = async () => {
+      if (isRefreshingBoard || document.hidden) return;
+
+      isRefreshingBoard = true;
+
+      try {
+        const response = await fetch(boardEndpoint, {
+          headers: {
+            'Accept': 'text/html'
+          },
+          credentials: 'same-origin'
+        });
+
+        if (!response.ok) throw new Error(`Board refresh failed with ${response.status}`);
+
+        const html = await response.text();
+        replaceBoard(html);
+        return true;
+      } catch (error) {
+        console.error(error);
+        return false;
+      } finally {
+        isRefreshingBoard = false;
+      }
+    };
+
+    const openAdjacentCard = (direction = 1) => {
+      const nextButton = adjacentButton(direction);
+      if (!nextButton) return false;
+      openModal(nextButton);
+      return true;
+    };
+
+    const openNextReviewTask = async (currentCardId) => {
+      const reviewTaskButtons = reviewButtons();
+      const index = reviewTaskButtons.findIndex((button) => button.dataset.cardId === String(currentCardId));
+      const fallbackButton = reviewTaskButtons[index + 1] || reviewTaskButtons[0] || null;
+      const nextReviewId = fallbackButton?.dataset.cardId;
+
+      await refreshBoard();
+
+      const nextButton = nextReviewId ? findReviewButtonByCardId(nextReviewId) : reviewButtons()[0];
+      if (nextButton) {
+        openModal(nextButton);
+        return true;
+      }
+
+      const completedButton = currentCardId ? findButtonByCardId(currentCardId) : null;
+      if (completedButton) {
+        openModal(completedButton);
+        return true;
+      }
+
+      closeModal();
+      return false;
+    };
+
+    window.setInterval(refreshBoard, pollIntervalMs);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) refreshBoard();
+    });
+
+    document.addEventListener('click', async (event) => {
+      const archiveAllButton = event.target.closest('.js-archive-all-complete');
+      if (archiveAllButton) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const projectId = archiveAllButton.dataset.projectId || '';
+        if (!window.confirm('Archive every task in the Complete column?')) return;
+
+        archiveAllButton.disabled = true;
+
+        try {
+          const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+          const response = await fetch(`/kanban/cards/archive_complete${query}`, {
+            method: 'DELETE',
+            headers: {
+              'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '',
+              'Accept': 'application/json'
+            },
+            credentials: 'same-origin'
+          });
+
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) throw new Error(payload.error || 'Archive all failed');
+
+          if (!modal.classList.contains('hidden')) closeModal();
+          refreshBoard();
+        } catch (error) {
+          console.error(error);
+          alert('Could not archive the completed tasks.');
+          archiveAllButton.disabled = false;
+        }
+
+        return;
+      }
+
+      const requeueButton = event.target.closest('.js-requeue-card');
+      if (requeueButton) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const cardId = requeueButton.dataset.cardId;
+        if (!cardId) return;
+        if (!window.confirm('Requeue this task using the timeout recommendation?')) return;
+
+        requeueButton.disabled = true;
+
+        try {
+          const response = await fetch(`/kanban/cards/${cardId}/requeue_with_recommendation`, {
+            method: 'PATCH',
+            headers: {
+              'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '',
+              'Accept': 'application/json'
+            },
+            credentials: 'same-origin'
+          });
+
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) throw new Error(payload.error || 'Requeue failed');
+
+          if (!modal.classList.contains('hidden')) closeModal();
+          await refreshBoard();
+        } catch (error) {
+          console.error(error);
+          alert('Could not requeue the task with recommendation.');
+          requeueButton.disabled = false;
+        }
+
+        return;
+      }
+
+      const markCompleteButton = event.target.closest('.js-mark-complete-card, #kanban-card-modal-mark-complete');
+      if (markCompleteButton) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const cardId = markCompleteButton.dataset.cardId;
+        if (!cardId) return;
+
+        markCompleteButton.disabled = true;
+        if (fields.markComplete !== markCompleteButton) fields.markComplete.disabled = true;
+
+        try {
+          const response = await fetch(`/kanban/cards/${cardId}/complete`, {
+            method: 'PATCH',
+            headers: {
+              'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '',
+              'Accept': 'application/json'
+            },
+            credentials: 'same-origin'
+          });
+
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) throw new Error(payload.error || 'Move to Complete failed');
+
+          if (!modal.classList.contains('hidden') && activeCardId === String(cardId)) {
+            await openNextReviewTask(cardId);
+          } else {
+            await refreshBoard();
+          }
+        } catch (error) {
+          console.error(error);
+          alert('Could not move the task to Complete.');
+          markCompleteButton.disabled = false;
+          fields.markComplete.disabled = false;
+        }
+
+        return;
+      }
+
+      const archiveButton = event.target.closest('.js-archive-card');
+      if (archiveButton) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const cardId = archiveButton.dataset.cardId;
+        const currentStatus = (archiveButton.dataset.cardStatus || 'current').replace(/_/g, ' ');
+        if (!cardId) return;
+        if (!window.confirm(`Archive this ${currentStatus} task?`)) return;
+
+        archiveButton.disabled = true;
+
+        try {
+          const response = await fetch(`/kanban/cards/${cardId}`, {
+            method: 'DELETE',
+            headers: {
+              'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '',
+              'Accept': 'application/json'
+            },
+            credentials: 'same-origin'
+          });
+
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) throw new Error(payload.error || 'Archive failed');
+
+          const card = document.querySelector(`[data-kanban-card-id="${cardId}"]`);
+          if (card) card.remove();
+          if (!modal.classList.contains('hidden')) closeModal();
+          refreshBoard();
+        } catch (error) {
+          console.error(error);
+          alert('Could not archive the task.');
+          archiveButton.disabled = false;
+        }
+
+        return;
+      }
+
+      const openButton = event.target.closest('.js-open-card-modal');
+      if (openButton) {
+        event.preventDefault();
+        openModal(openButton);
+        return;
+      }
+
+      if (event.target.closest('.js-close-card-modal')) {
+        closeModal();
+        return;
+      }
+
+      // Close when clicking the backdrop or the outer modal container (not inside the card panel)
+      if (!modal.classList.contains('hidden')) {
+        const cardPanel = modal.querySelector('.w-full.max-w-3xl');
+        if (cardPanel && !cardPanel.contains(event.target)) {
+          closeModal();
+        }
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (modal.classList.contains('hidden')) return;
+      if (event.key === 'Escape') {
+        closeModal();
+        return;
+      }
+
+      if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        openAdjacentCard(-1);
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        openAdjacentCard(1);
+      }
+    });
+
+    fields.prev?.addEventListener('click', () => openAdjacentCard(-1));
+    fields.next?.addEventListener('click', () => openAdjacentCard(1));
+
+    // Handle browser back/forward
+    window.addEventListener('popstate', (event) => {
+      const cardId = event.state?.cardId;
+      if (cardId) {
+        const btn = findButtonByCardId(cardId);
+        if (btn) { openModal(btn); return; }
+      }
+      closeModal();
+    });
+
+    // Auto-open card from ?card= deep link on page load
+    const initialCardId = new URL(window.location.href).searchParams.get('card');
+    if (initialCardId) {
+      const btn = findButtonByCardId(initialCardId);
+      if (btn) openModal(btn);
+    }
+  })();
+</script>
