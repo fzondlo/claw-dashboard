@@ -1,0 +1,18 @@
+<aside class="border-b border-slate-200 bg-slate-950 text-white lg:min-h-screen lg:border-b-0 lg:border-r">
+  <div class="px-6 py-6">
+    <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-300">Zevner Operations</p>
+    <h1 class="mt-2 text-3xl font-semibold tracking-[-0.04em]">Dash</h1>
+    <p class="mt-3 max-w-xs text-sm leading-6 text-slate-400">Operational overview for lanes, profiles, capacity, and session pressure.</p>
+
+    <nav class="mt-8 space-y-2 text-sm font-medium">
+      <%= link_to "Overview", root_path, class: "flex items-center justify-between rounded-2xl px-4 py-3 transition #{current_page?(root_path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}" %>
+      <%= link_to "Kanban board", kanban_path, class: "flex items-center justify-between rounded-2xl px-4 py-3 transition #{current_page?(kanban_path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}" %>
+      <%= link_to "Projects", projects_path, class: "flex items-center justify-between rounded-2xl px-4 py-3 transition #{current_page?(projects_path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}" %>
+    </nav>
+
+    <div class="mt-8 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+      <div class="text-xs uppercase tracking-[0.24em] text-slate-400">Last refresh</div>
+      <div id="updated" class="mt-2 font-medium text-white"><%= updated_at.strftime('%Y-%m-%d %H:%M:%S UTC') %></div>
+    </div>
+  </div>
+</aside>
