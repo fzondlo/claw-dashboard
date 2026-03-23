@@ -10,7 +10,6 @@ require "socket"
 require "time"
 
 class DashboardStatsService
-  AUTH_PROFILES = Pathname.new("/home/ubuntu/.openclaw/agents/main/agent/auth-profiles.json")
   AGENTS_ROOT = Pathname.new("/home/ubuntu/.openclaw/agents")
   WORKSPACE_ROOT = Pathname.new("/home/ubuntu/.openclaw/workspace")
   EXTRA_PROFILES = WORKSPACE_ROOT.join("lobster-board/profiles-extra.json")
@@ -234,10 +233,15 @@ class DashboardStatsService
   def load_profiles
     out = []
     seen = Set.new
-    main = read_json(AUTH_PROFILES, {})
-    stats = main["usageStats"] || {}
 
-    add_profile_set(out, seen, main.fetch("profiles", {}), stats)
+    AGENTS_ROOT.children.each do |agent_dir|
+      next unless agent_dir.directory?
+
+      auth = read_json(agent_dir.join("agent/auth-profiles.json"), {})
+      stats = auth["usageStats"] || {}
+      add_profile_set(out, seen, auth.fetch("profiles", {}), stats)
+    end
+
     add_array_profiles(out, seen, read_json(SECRET_PROFILES, []))
     add_array_profiles(out, seen, read_json(EXTRA_PROFILES, []))
 
@@ -353,7 +357,7 @@ class DashboardStatsService
 
   def load_lane_auth_truth(per_agent_session_store)
     per_agent_session_store.each_with_object([]) do |(agent_id, store), out|
-      next unless agent_id.match?(/^pixi[1-8]$/)
+      next unless agent_id.match?(/^(pixi|marvin)[1-8]$/)
 
       auth = read_json(AGENTS_ROOT.join("#{agent_id}/agent/auth-profiles.json"), {})
       models = read_json(AGENTS_ROOT.join("#{agent_id}/agent/models.json"), {})
@@ -366,10 +370,16 @@ class DashboardStatsService
       last_used_profile, last_used_at = usage_stats.max_by { |_profile_id, stats| stats["lastUsed"].to_i } || [nil, { "lastUsed" => 0 }]
       last_used_at_value = last_used_at["lastUsed"].to_i
 
-      telegram_entries = store.select { |key, _entry| key.to_s.start_with?("agent:#{agent_id}:") && key.to_s.include?(":telegram:") }
+      agent_entries = store.select { |key, _entry| key.to_s.start_with?("agent:#{agent_id}:") }
+      telegram_entries = agent_entries.select { |key, _entry| key.to_s.include?(":telegram:") }
+      preferred_entries = if agent_id.start_with?("pixi")
+        telegram_entries.presence || agent_entries
+      else
+        agent_entries
+      end
 
-      if telegram_entries.empty?
-        lane = normalize_lane_name(agent_id, agent_id.sub("pixi", "Pixi "))
+      if preferred_entries.empty?
+        lane = normalize_lane_name(agent_id, agent_id.sub(/^pixi/, "Pixi ").sub(/^marvin/, "Marvin "))
         model = default_model || "unknown"
         compatible_last_used = provider_from_model(model) == "openai-codex" ? last_used_profile : nil
         out << {
@@ -389,7 +399,7 @@ class DashboardStatsService
         next
       end
 
-      telegram_entries.each do |key, entry|
+      preferred_entries.each do |key, entry|
         lane = lane_name_for_session(key, entry)
         pinned_profile = entry["authProfileOverride"]
         model = entry["model"] || default_model || "unknown"
@@ -440,7 +450,8 @@ class DashboardStatsService
     rows = []
 
     session_store.each do |key, entry|
-      next unless key.to_s.include?(":telegram:")
+      next unless key.to_s.match?(/^agent:(pixi|marvin)[1-8]:/)
+      next if key.to_s.match?(/^agent:pixi[1-8]:/) && !key.to_s.include?(":telegram:")
 
       name = lane_name_for_session(key, entry)
       next if rows.any? { |row| row[:name] == name }
@@ -484,13 +495,14 @@ class DashboardStatsService
 
   def normalize_lane_name(key, raw)
     text = raw.to_s.downcase
-    return "Pixi 8" if key.to_s.include?("agent:pixi8:") || text.include?("pixi8")
-    return "Pixi 7" if key.to_s.include?("agent:pixi7:") || text.include?("pixi7")
-    return "Pixi 6" if key.to_s.include?("agent:pixi6:") || text.include?("pixi6")
-    return "Pixi 5" if key.to_s.include?("agent:pixi5:") || text.include?("pixi5") || text.include?("pixi 5")
-    return "Pixi 4" if key.to_s.include?("agent:pixi4:") || text.include?("pixi4") || text.include?("pixi 4")
-    return "Pixi 3" if key.to_s.include?("agent:pixi3:") || text.include?("pixi3")
-    return "Pixi 2" if key.to_s.include?("agent:pixi2:") || text.include?("pixi2")
+    return "Marvin 8" if key.to_s.include?("agent:marvin8:") || text.include?("marvin8") || text.include?("marvin 8")
+    return "Marvin 7" if key.to_s.include?("agent:marvin7:") || text.include?("marvin7") || text.include?("marvin 7")
+    return "Marvin 6" if key.to_s.include?("agent:marvin6:") || text.include?("marvin6") || text.include?("marvin 6")
+    return "Marvin 5" if key.to_s.include?("agent:marvin5:") || text.include?("marvin5") || text.include?("marvin 5")
+    return "Marvin 4" if key.to_s.include?("agent:marvin4:") || text.include?("marvin4") || text.include?("marvin 4")
+    return "Marvin 3" if key.to_s.include?("agent:marvin3:") || text.include?("marvin3") || text.include?("marvin 3")
+    return "Marvin 2" if key.to_s.include?("agent:marvin2:") || text.include?("marvin2") || text.include?("marvin 2")
+    return "Marvin 1" if key.to_s.include?("agent:marvin1:") || text.include?("marvin1") || text.include?("marvin 1")
     return "Pixi 1" if key.to_s.include?("agent:pixi1:") || key.to_s.include?("telegram:direct:6449879040") || text.include?("pixi1")
 
     raw

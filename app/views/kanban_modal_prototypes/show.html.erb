@@ -27,8 +27,17 @@
   </div>
 
   <%# Description %>
-  <div class="max-w-3xl mx-auto mt-6 px-6">
-    <p class="text-sm text-slate-500"><%= @meta[:description] %></p>
+  <div class="mx-auto mt-6 max-w-6xl px-6">
+    <div class="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)]">
+      <div>
+        <p class="text-sm text-slate-500"><%= @meta[:description] %></p>
+      </div>
+      <div class="rounded-[1.5rem] border border-slate-200 bg-white/80 px-5 py-4 shadow-sm shadow-slate-900/5 backdrop-blur">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700">Review target</div>
+        <div class="mt-2 text-sm font-semibold text-slate-900">Ready for Review modal redesign</div>
+        <p class="mt-2 text-sm leading-6 text-slate-600">Prototype C is the intended direction. These preview pages are styled to feel close to a production Dash review flow so Frank can pick the treatment before rollout.</p>
+      </div>
+    </div>
   </div>
 
   <%# Simulated board backdrop %>

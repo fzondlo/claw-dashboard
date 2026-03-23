@@ -3,23 +3,15 @@ require 'set'
 
 class KanbanBoardController < ApplicationController
   COLUMN_ORDER = %w[icebox queued in_progress ready_for_review complete].freeze
+  HEARTBEAT_STALE_AFTER = 5.minutes
 
   before_action :load_board!, only: %i[index board preview_v2 board_v2]
 
   def index
-    @workers = lane_keys.map do |lane_key|
-      heartbeat_path = Rails.root.join('..', 'memory', lane_key, 'HEARTBEAT.md')
-      task = parse_heartbeat_task(heartbeat_path)
-      {
-        name: lane_key.sub('pixi', 'Pixi '),
-        active: task.present?,
-        task: task
-      }
-    end
   end
 
   def board
-    render partial: 'board'
+    render partial: 'live_sections'
   end
 
   def preview_v2
@@ -116,12 +108,77 @@ class KanbanBoardController < ApplicationController
     end
   end
 
+  def requeue_with_original_instructions
+    card = KanbanCard.find(params[:id])
+
+    if card.active == false
+      return render json: { error: 'Task is already archived.' }, status: :unprocessable_entity if request.xhr? || request.format.json?
+
+      redirect_to kanban_path, alert: 'Task is already archived.'
+      return
+    end
+
+    recommendation = card.effective_requeue_recommendation
+
+    unless card.status == 'ready_for_review' && recommendation.present?
+      return render json: { error: 'Only timed-out review tasks can be requeued with original instructions.' }, status: :unprocessable_entity if request.xhr? || request.format.json?
+
+      redirect_to kanban_path, alert: 'Only timed-out review tasks can be requeued with original instructions.'
+      return
+    end
+
+    card.with_lock do
+      card.requeue_with_original_instructions!(source: 'kanban_board')
+    end
+
+    if request.xhr? || request.format.json?
+      render json: { ok: true, requeuedId: card.id, status: card.status }
+    else
+      redirect_to kanban_path, notice: 'Task requeued with original instructions.'
+    end
+  end
+
+  def move_backlog
+    card = KanbanCard.find(params[:id])
+
+    if card.active == false
+      return render json: { error: 'Task is already archived.' }, status: :unprocessable_entity if request.xhr? || request.format.json?
+
+      redirect_to kanban_path, alert: 'Task is already archived.'
+      return
+    end
+
+    target_status = params[:target_status].to_s
+
+    unless card.status.in?(%w[queued icebox]) && target_status.in?(%w[queued icebox])
+      return render json: { error: 'Only queued and icebox tasks can be moved here.' }, status: :unprocessable_entity if request.xhr? || request.format.json?
+
+      redirect_to kanban_path, alert: 'Only queued and icebox tasks can be moved here.'
+      return
+    end
+
+    card.move_between_backlog_states!(target_status: target_status, source: 'kanban_board')
+
+    if request.xhr? || request.format.json?
+      render json: { ok: true, movedId: card.id, status: card.status }
+    else
+      redirect_to kanban_path, notice: "Task moved to #{card.status.humanize}."
+    end
+  rescue ArgumentError => e
+    if request.xhr? || request.format.json?
+      render json: { error: e.message }, status: :unprocessable_entity
+    else
+      redirect_to kanban_path, alert: e.message
+    end
+  end
+
   private
 
   def load_board!
     @updated_at = Time.current
     @selected_project = params[:project_id].to_s.presence
     @project_options = Project.ordered.to_a
+    @selected_project_name = selected_project_name
 
     @columns = {
       'icebox' => filtered_manual_cards('icebox'),
@@ -130,6 +187,8 @@ class KanbanBoardController < ApplicationController
       'ready_for_review' => filtered_manual_cards('ready_for_review'),
       'complete' => filtered_manual_cards('complete')
     }
+    @workers = worker_snapshot(@columns.fetch('in_progress'))
+    @worker_desyncs = @workers.select { |worker| worker[:desynced] }
     @board_updated_at = board_updated_at
   end
 
@@ -141,9 +200,9 @@ class KanbanBoardController < ApplicationController
 
   def merged_in_progress_cards
     live_cards = filtered_live_in_progress_cards
-    occupied_lanes = live_cards.map { |card| card.lane.to_s.downcase }.to_set
+    occupied_lanes = live_cards.map { |card| normalize_lane_key(card.lane) }.to_set
     manual_cards = filtered_manual_cards('in_progress').reject do |card|
-      occupied_lanes.include?(card.lane.to_s.downcase)
+      occupied_lanes.include?(normalize_lane_key(card.lane))
     end
     manual_cards + live_cards
   end
@@ -156,11 +215,12 @@ class KanbanBoardController < ApplicationController
     lane_keys.filter_map do |lane_key|
       heartbeat_path = Rails.root.join('..', 'memory', lane_key, 'HEARTBEAT.md')
       task = parse_heartbeat_task(heartbeat_path)
-      next unless task
-
       manual_card = active_manual_card_for_lane(lane_key)
-      project = manual_card&.project || infer_project(task, lane_key)
-      lane_label = lane_key.sub('pixi', 'Pixi ')
+      next unless manual_card || task
+      next unless manual_card
+
+      project = manual_card.project || infer_project(task, lane_key)
+      lane_label = lane_key.sub('marvin', 'Marvin ')
       heartbeat_updated_at = File.mtime(heartbeat_path) rescue nil
 
       activity_entries = manual_card&.activity_entries_list || []
@@ -197,7 +257,49 @@ class KanbanBoardController < ApplicationController
   end
 
   def lane_keys
-    %w[pixi1 pixi2 pixi3 pixi4 pixi5 pixi6 pixi7 pixi8]
+    %w[marvin1 marvin2 marvin3 marvin4 marvin5 marvin6 marvin7 marvin8]
+  end
+
+  def worker_snapshot(in_progress_cards = merged_in_progress_cards)
+    cards_by_lane = in_progress_cards.each_with_object({}) do |card, out|
+      lane_value = normalize_lane_key(card.try(:lane))
+      next if lane_value.blank?
+
+      out[lane_value] ||= card
+    end
+
+    lane_keys.map do |lane_key|
+      heartbeat = heartbeat_info(lane_key)
+      card = cards_by_lane[lane_key]
+      task = heartbeat[:task].presence || card&.title
+      missing_heartbeat = card.present? && heartbeat[:task].blank?
+      stale_heartbeat = card.present? && heartbeat[:stale]
+
+      {
+        name: lane_key.sub('marvin', 'Marvin '),
+        lane: lane_key,
+        active: card.present?,
+        task: task,
+        card_id: card&.id,
+        desynced: missing_heartbeat || stale_heartbeat,
+        desync_reason: if missing_heartbeat
+          'Heartbeat blank'
+        elsif stale_heartbeat
+          'Heartbeat stale'
+        end,
+        heartbeat_updated_at: heartbeat[:updated_at]
+      }
+    end
+  end
+
+  def selected_project_name
+    if @selected_project == 'none'
+      KanbanCard::NO_PROJECT
+    elsif @selected_project.present?
+      @project_options.find { |project| project.id.to_s == @selected_project.to_s }&.name || 'Selected project'
+    else
+      'All projects'
+    end
   end
 
   def apply_project_filter(scope)
@@ -220,8 +322,8 @@ class KanbanBoardController < ApplicationController
       'Raizia'
     elsif text.include?('dash') || text.include?('kanban')
       'Dashboard'
-    elsif text.include?('openclaw') || text.include?('session') || text.include?('runtime')
-      'OpenClaw'
+    elsif text.include?('openclaw') || text.include?('devops') || text.include?('session') || text.include?('runtime')
+      'DevOps'
     else
       nil
     end
@@ -230,7 +332,7 @@ class KanbanBoardController < ApplicationController
   end
 
   def active_manual_card_for_lane(lane_key)
-    lane_label = lane_key.sub('pixi', 'Pixi ')
+    lane_label = lane_key.sub('marvin', 'Marvin ')
     candidates = [lane_key.downcase, lane_label.downcase].uniq
 
     KanbanCard.where(status: 'in_progress', active: true)
@@ -239,17 +341,44 @@ class KanbanBoardController < ApplicationController
       .first
   end
 
-  def parse_heartbeat_task(path)
-    text = File.read(path)
+  def normalize_lane_key(value)
+    text = value.to_s.strip.downcase
+    return nil if text.blank?
+
+    match = text.match(/marvin\s*(\d+)/)
+    return "marvin#{match[1]}" if match
+
+    text.delete(' ')
+  end
+
+  def heartbeat_info(lane_key)
+    heartbeat_path = Rails.root.join('..', 'memory', lane_key, 'HEARTBEAT.md')
+    text = File.read(heartbeat_path)
     match = text.match(/Active task:\s*(.+)/i)
-    return unless match
+    raw_task = match && match[1].to_s.gsub(/[*_`~]/, '').strip
+    task = if raw_task.blank? || raw_task == '(none)' || raw_task.casecmp('none').zero?
+      nil
+    else
+      raw_task
+    end
+    updated_at = File.mtime(heartbeat_path)
 
-    task = match[1].to_s.gsub(/[*_`~]/, '').strip
-    return if task.blank? || task == '(none)' || task.casecmp('none').zero?
-
-    task
+    {
+      task: task,
+      updated_at: updated_at,
+      stale: updated_at < HEARTBEAT_STALE_AFTER.ago
+    }
   rescue Errno::ENOENT
-    nil
+    {
+      task: nil,
+      updated_at: nil,
+      stale: false
+    }
+  end
+
+  def parse_heartbeat_task(path)
+    lane_key = Pathname.new(path).dirname.basename.to_s
+    heartbeat_info(lane_key)[:task]
   end
 
   def board_updated_at

@@ -7,7 +7,6 @@
     <nav class="mt-8 space-y-2 text-sm font-medium">
       <%= link_to "Overview", root_path, class: "flex items-center justify-between rounded-2xl px-4 py-3 transition #{current_page?(root_path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}" %>
       <%= link_to "Kanban board", kanban_path, class: "flex items-center justify-between rounded-2xl px-4 py-3 transition #{current_page?(kanban_path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}" %>
-      <%= link_to "Kanban v2 preview", kanban_v2_path, class: "flex items-center justify-between rounded-2xl px-4 py-3 transition #{current_page?(kanban_v2_path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}" %>
       <%= link_to "Projects", projects_path, class: "flex items-center justify-between rounded-2xl px-4 py-3 transition #{current_page?(projects_path) ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}" %>
     </nav>
 

@@ -1,13 +1,3 @@
-<%
-  selected_project_name = if @selected_project == 'none'
-    KanbanCard::NO_PROJECT
-  elsif @selected_project.present?
-    @project_options.find { |project| project.id.to_s == @selected_project.to_s }&.name || 'Selected project'
-  else
-    'All projects'
-  end
-%>
-
 <div class="min-h-screen bg-slate-100 text-slate-900 lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
   <%= render "layouts/sidebar", updated_at: @updated_at %>
 
@@ -25,132 +15,87 @@
       </div>
     </div>
 
-    <section class="mt-6 overflow-hidden rounded-[2rem] border border-slate-200/70 bg-white shadow-[0_24px_80px_-42px_rgba(15,23,42,0.45)]">
-      <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
-        <%= form_with url: kanban_path, method: :get, local: true, class: 'flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between', html: { id: 'kanban-project-filter-form' } do |f| %>
-          <div>
-            <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Project scope</div>
-            <div class="mt-2 text-sm text-slate-600">Changing the project filter now updates the board immediately.</div>
-          </div>
+    <%= render 'live_sections' %>
 
-          <div class="flex flex-wrap items-center gap-3">
-            <label class="inline-flex items-center gap-3 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 shadow-sm shadow-sky-100/50">
-              <span class="pl-1">Project</span>
-              <span class="relative inline-flex items-center">
-                <%= f.select :project_id, options_for_select([['All projects', '']] + @project_options.map { |project| [project.name, project.id] } + [[KanbanCard::NO_PROJECT, 'none']], @selected_project), {}, class: 'appearance-none rounded-full border border-sky-200 bg-white pl-4 pr-10 py-2 text-sm font-semibold text-sky-950 focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-100', data: { auto_submit: true } %>
-                <span class="pointer-events-none absolute right-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-50 text-sky-700 ring-1 ring-sky-100">
-                  <svg viewBox="0 0 20 20" fill="none" class="h-3.5 w-3.5" aria-hidden="true">
-                    <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </span>
-              </span>
-            </label>
-            <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600">Scope · <%= selected_project_name %></span>
-          </div>
-        <% end %>
-      </div>
-
-      <div class="grid gap-4 px-5 py-5 sm:px-6 xl:grid-cols-3">
-        <div class="rounded-[1.6rem] border border-slate-200 bg-slate-50 p-5">
-          <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Worker density</div>
-          <div class="mt-4 flex flex-wrap gap-2">
-            <span class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-              <span class="h-2 w-2 rounded-full bg-slate-400"></span>
-              <%= @workers.size %> Workers
-            </span>
-            <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
-              <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-              <%= @workers.count { |w| w[:active] } %> Active
-            </span>
-            <span class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
-              <span class="h-2 w-2 rounded-full bg-blue-500"></span>
-              <%= @workers.count { |w| !w[:active] } %> Idle
-            </span>
-          </div>
-        </div>
-        <div class="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <div class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">Project summary</div>
-          <div class="mt-4 space-y-3 text-sm text-slate-600">
-            <div class="flex items-center justify-between rounded-2xl bg-slate-100 px-4 py-3"><span>Total cards</span><span class="font-semibold text-slate-900"><%= KanbanBoardController::COLUMN_ORDER.sum { |key| @columns.fetch(key).size } %></span></div>
-            <div class="flex items-center justify-between rounded-2xl bg-sky-50 px-4 py-3"><span>In progress</span><span class="font-semibold text-sky-800"><%= @columns.fetch('in_progress').size %></span></div>
-          </div>
-        </div>
-        <div class="rounded-[1.6rem] border border-dashed border-slate-300 bg-white/70 p-5">
-          <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Active workers</div>
-          <div class="mt-4 flex flex-wrap gap-1.5">
-            <% @workers.select { |w| w[:active] }.each do |worker| %>
-              <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800" title="<%= worker[:task] %>"><%= worker[:name] %></span>
-            <% end %>
-            <% if @workers.none? { |w| w[:active] } %>
-              <span class="text-sm italic text-slate-400">No active workers</span>
-            <% end %>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <%= render 'board' %>
   </main>
 </div>
 
 <div id="kanban-card-modal" class="fixed inset-0 z-50 hidden" aria-hidden="true">
   <div class="js-card-modal-backdrop absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
   <div class="relative flex min-h-full items-center justify-center p-4 sm:p-6">
-    <div class="w-full max-w-3xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_35px_120px_-35px_rgba(15,23,42,0.55)]">
-      <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+    <div class="w-full max-w-5xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_40px_120px_-30px_rgba(15,23,42,0.55)]">
+      <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7 sm:py-6">
         <div>
-          <div id="kanban-card-modal-id" class="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700"></div>
-          <h3 id="kanban-card-modal-title" class="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-950"></h3>
+          <div id="kanban-card-modal-id" class="text-[11px] font-black uppercase tracking-[0.32em] text-sky-600"></div>
+          <h3 id="kanban-card-modal-title" class="mt-2 text-2xl font-semibold leading-tight tracking-[-0.03em] text-slate-950 sm:text-[1.75rem]"></h3>
         </div>
-        <button type="button" class="js-close-card-modal inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-xl text-slate-500 transition hover:border-slate-300 hover:text-slate-700" aria-label="Close card details">×</button>
+        <button type="button" class="js-close-card-modal inline-flex h-10 w-10 flex-none items-center justify-center rounded-full bg-slate-100 text-xl text-slate-400 transition hover:bg-slate-200 hover:text-slate-700" aria-label="Close card details">×</button>
       </div>
 
-      <div class="max-h-[80vh] overflow-y-auto px-5 py-5 sm:px-6">
-        <section id="kanban-card-modal-review-callout" class="hidden rounded-[1.75rem] border border-amber-300 bg-gradient-to-r from-amber-100 via-yellow-50 to-white p-5 shadow-[0_20px_60px_-35px_rgba(217,119,6,0.8)] ring-1 ring-amber-200/80">
-          <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div class="text-[11px] font-black uppercase tracking-[0.32em] text-amber-700">Ready for review</div>
-              <h4 class="mt-2 text-xl font-semibold tracking-[-0.03em] text-amber-950">This task is waiting on QA right now.</h4>
-              <p class="mt-2 text-sm font-medium text-amber-900/80">Use ← / → to move through review tasks fast, or mark this one complete and jump to the next item.</p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <button type="button" id="kanban-card-modal-prev" class="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-50">← Prev</button>
-              <button type="button" id="kanban-card-modal-next" class="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-50">Next →</button>
-              <button type="button" id="kanban-card-modal-mark-complete" class="inline-flex items-center justify-center rounded-xl border border-emerald-300 bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-emerald-200 disabled:bg-emerald-200">Mark complete</button>
-            </div>
+      <div class="flex max-h-[82vh] flex-col lg:flex-row lg:divide-x lg:divide-slate-100">
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6 lg:px-6 lg:py-5">
+          <div class="space-y-4">
+            <div id="kanban-card-modal-live" class="hidden rounded-2xl bg-sky-50 px-4 py-3 text-sm font-medium text-sky-700 ring-1 ring-sky-100">Live worker task</div>
+
+            <section id="kanban-card-modal-completion-duration" class="hidden rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-4">
+              <div class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Completion duration</div>
+              <div id="kanban-card-modal-completion-duration-value" class="mt-2 text-lg font-semibold text-emerald-900"></div>
+              <p class="mt-1 text-sm leading-6 text-emerald-800/80">Measured from In progress to Ready for review.</p>
+            </section>
+
+            <section class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+              <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Description</div>
+              <div id="kanban-card-modal-description" class="markdown-body mt-2 text-sm leading-6 text-slate-700"></div>
+            </section>
+
+            <section class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+              <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Activity</div>
+              <div id="kanban-card-modal-activity" class="mt-2 text-sm leading-6 text-slate-700"></div>
+            </section>
+
+            <section class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+              <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Review focus</div>
+              <div id="kanban-card-modal-review-focus" class="markdown-body mt-2 text-sm leading-6 text-slate-700"></div>
+            </section>
           </div>
-        </section>
-
-        <div class="mt-4 flex flex-wrap gap-2" id="kanban-card-modal-badges"></div>
-
-        <section id="kanban-card-modal-review-links" class="mt-4 hidden rounded-[1.5rem] border border-sky-200 bg-gradient-to-r from-sky-50 via-cyan-50 to-white p-4 shadow-sm shadow-sky-100/70">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">Review</div>
-              <p class="mt-1 text-sm font-medium text-slate-700">Open the latest review target for this task.</p>
-            </div>
-            <div id="kanban-card-modal-review-links-list" class="flex flex-wrap gap-2"></div>
-          </div>
-        </section>
-
-        <div id="kanban-card-modal-live" class="mt-4 hidden rounded-2xl bg-sky-50 px-4 py-3 text-sm font-medium text-sky-700 ring-1 ring-sky-100">Live worker task</div>
-
-        <div class="mt-6 grid gap-4 lg:grid-cols-2">
-          <section class="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4 lg:col-span-2">
-            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Description</div>
-            <div id="kanban-card-modal-description" class="markdown-body mt-2 text-sm leading-6 text-slate-700"></div>
-          </section>
-
-          <section class="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4">
-            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Activity</div>
-            <div id="kanban-card-modal-activity" class="mt-2 text-sm leading-6 text-slate-700"></div>
-          </section>
-
-          <section class="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4">
-            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Review focus</div>
-            <div id="kanban-card-modal-review-focus" class="markdown-body mt-2 text-sm leading-6 text-slate-700"></div>
-          </section>
         </div>
+
+        <aside class="flex w-full flex-none flex-col gap-4 border-t border-slate-100 bg-slate-50 px-5 py-5 sm:px-6 lg:w-80 lg:border-t-0 lg:px-5">
+          <div>
+            <div class="text-[11px] font-black uppercase tracking-[0.28em] text-amber-700">Action rail</div>
+            <p class="mt-1.5 text-xs leading-5 text-slate-500">Review targets, completion, and requeue actions stay pinned here.</p>
+          </div>
+
+          <section id="kanban-card-modal-review-links" class="hidden rounded-2xl border border-sky-200 bg-white p-4 shadow-sm shadow-sky-100/70">
+            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">Review</div>
+            <p class="mt-1 text-sm font-medium text-slate-700">Open the latest review target for this task.</p>
+            <div id="kanban-card-modal-review-links-list" class="mt-3 flex flex-col gap-2"></div>
+          </section>
+
+          <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Status</div>
+            <div class="mt-3 flex flex-wrap gap-2" id="kanban-card-modal-badges"></div>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="flex flex-col gap-2">
+              <button type="button" id="kanban-card-modal-mark-complete" class="inline-flex w-full items-center justify-center rounded-2xl border border-emerald-400 bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-emerald-200 disabled:bg-emerald-200">Mark complete</button>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" id="kanban-card-modal-prev" class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">← Prev</button>
+                <button type="button" id="kanban-card-modal-next" class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">Next →</button>
+              </div>
+            </div>
+          </div>
+
+          <section id="kanban-card-modal-requeue-actions" class="hidden rounded-2xl border border-violet-200 bg-white p-4 shadow-sm shadow-violet-100/70">
+            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">Requeue options</div>
+            <p class="mt-1 text-sm font-medium text-slate-700">Keep the timeout recommendation or send the worker back with the original instructions only.</p>
+            <div class="mt-3 flex flex-col gap-2">
+              <button type="button" id="kanban-card-modal-requeue-recommendation" class="js-requeue-card inline-flex items-center justify-center rounded-2xl border border-violet-300 bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:border-violet-200 disabled:bg-violet-200">Requeue with recommendation</button>
+              <button type="button" id="kanban-card-modal-requeue-original" class="js-requeue-card inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400">Requeue with original instructions</button>
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   </div>
@@ -170,18 +115,30 @@
       reviewFocus: document.getElementById('kanban-card-modal-review-focus'),
       reviewLinks: document.getElementById('kanban-card-modal-review-links'),
       reviewLinksList: document.getElementById('kanban-card-modal-review-links-list'),
+      requeueActions: document.getElementById('kanban-card-modal-requeue-actions'),
+      requeueRecommendation: document.getElementById('kanban-card-modal-requeue-recommendation'),
+      requeueOriginal: document.getElementById('kanban-card-modal-requeue-original'),
       live: document.getElementById('kanban-card-modal-live'),
-      reviewCallout: document.getElementById('kanban-card-modal-review-callout'),
+      completionDuration: document.getElementById('kanban-card-modal-completion-duration'),
+      completionDurationValue: document.getElementById('kanban-card-modal-completion-duration-value'),
       prev: document.getElementById('kanban-card-modal-prev'),
       next: document.getElementById('kanban-card-modal-next'),
       markComplete: document.getElementById('kanban-card-modal-mark-complete')
     };
 
     const fallbackText = '—';
-    const boardEndpoint = '<%= live_kanban_board_path(project_id: @selected_project) %>';
+    const liveSectionsEndpoint = '<%= live_kanban_board_path(project_id: @selected_project) %>';
+    const liveSectionsContainer = () => document.getElementById('kanban-live-sections');
     const pollIntervalMs = 15000;
+    const columnSortStorageKey = 'kanbanColumnSortPreferences';
     let isRefreshingBoard = false;
     let activeCardId = null;
+
+    const liveSectionsUrl = () => {
+      const url = new URL(liveSectionsEndpoint, window.location.origin);
+      url.searchParams.set('_ts', String(Date.now()));
+      return url.toString();
+    };
 
     const escapeHtml = (value) => {
       const div = document.createElement('div');
@@ -202,13 +159,111 @@
       return `<a href="${safeUrl}" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${classes}">Review link ↗</a>`;
     };
 
+    const loadColumnSortPreferences = () => {
+      try {
+        return JSON.parse(window.localStorage.getItem(columnSortStorageKey) || '{}');
+      } catch (error) {
+        console.warn('Could not load kanban column sort preferences.', error);
+        return {};
+      }
+    };
+
+    const saveColumnSortPreferences = (preferences) => {
+      try {
+        window.localStorage.setItem(columnSortStorageKey, JSON.stringify(preferences));
+      } catch (error) {
+        console.warn('Could not save kanban column sort preferences.', error);
+      }
+    };
+
+    const columnSortPreferenceFor = (column) => {
+      const preferences = loadColumnSortPreferences();
+      const key = column?.dataset?.kanbanColumn;
+      const fallback = column?.dataset?.sortDefault || 'oldest';
+      return (key && preferences[key]) || fallback;
+    };
+
+    const cardSortTimestamp = (card) => {
+      const rawValue = card?.dataset?.cardSortTimestamp;
+      const parsed = rawValue ? Date.parse(rawValue) : NaN;
+      return Number.isNaN(parsed) ? 0 : parsed;
+    };
+
+    const updateColumnSortButton = (column, direction) => {
+      const button = column.querySelector('.js-kanban-column-sort');
+      if (!button) return;
+
+      const icon = button.querySelector('.js-kanban-column-sort-icon');
+      const isNewest = direction === 'newest';
+      const stateLabel = isNewest ? 'Sorted newest first — click to switch to oldest first' : 'Sorted oldest first — click to switch to newest first';
+
+      button.dataset.sortDirection = direction;
+      button.setAttribute('aria-pressed', String(isNewest));
+      button.setAttribute('title', stateLabel);
+      button.setAttribute('aria-label', stateLabel);
+      button.classList.toggle('border-sky-300', isNewest);
+      button.classList.toggle('bg-sky-50', isNewest);
+      button.classList.toggle('text-sky-700', isNewest);
+      button.classList.toggle('shadow-sm', isNewest);
+      button.classList.toggle('border-slate-200', !isNewest);
+      button.classList.toggle('bg-white', !isNewest);
+      button.classList.toggle('text-slate-600', !isNewest);
+      button.classList.toggle('shadow-sm', !isNewest);
+
+      if (icon) {
+        icon.textContent = isNewest ? '↓' : '↑';
+        icon.classList.toggle('scale-110', isNewest);
+      }
+    };
+
+    const applyColumnSort = (column, direction = columnSortPreferenceFor(column)) => {
+      if (!column) return;
+
+      const cardsContainer = column.querySelector('[data-kanban-column-cards]');
+      if (!cardsContainer) return;
+
+      const cards = Array.from(cardsContainer.querySelectorAll('[data-card-sort-timestamp]'));
+      cards.sort((left, right) => {
+        const difference = cardSortTimestamp(left) - cardSortTimestamp(right);
+        return direction === 'newest' ? -difference : difference;
+      });
+      cards.forEach((card) => cardsContainer.appendChild(card));
+      updateColumnSortButton(column, direction);
+    };
+
+    const applyAllColumnSorts = () => {
+      document.querySelectorAll('[data-kanban-column]').forEach((column) => applyColumnSort(column));
+    };
+
+    const toggleColumnSort = (button) => {
+      const column = button.closest('[data-kanban-column]');
+      if (!column) return;
+
+      const key = column.dataset.kanbanColumn;
+      const current = columnSortPreferenceFor(column);
+      const next = current === 'newest' ? 'oldest' : 'newest';
+      const preferences = loadColumnSortPreferences();
+      preferences[key] = next;
+      saveColumnSortPreferences(preferences);
+      applyColumnSort(column, next);
+    };
+
     const modalButtons = () => Array.from(document.querySelectorAll('.js-open-card-modal'));
     const reviewButtons = () => modalButtons().filter((button) => button.dataset.cardStatusKey === 'ready_for_review');
     const findButtonByCardId = (cardId) => modalButtons().find((button) => button.dataset.cardId === String(cardId));
     const findReviewButtonByCardId = (cardId) => reviewButtons().find((button) => button.dataset.cardId === String(cardId));
+    const activeCardButton = () => findButtonByCardId(activeCardId);
+
+    const sameStatusButtons = () => {
+      const activeButton = activeCardButton();
+      const activeStatusKey = activeButton?.dataset?.cardStatusKey;
+      if (!activeStatusKey) return [];
+
+      return modalButtons().filter((button) => button.dataset.cardStatusKey === activeStatusKey);
+    };
 
     const adjacentButton = (direction = 1) => {
-      const buttons = modalButtons();
+      const buttons = sameStatusButtons();
       if (!buttons.length || !activeCardId) return null;
 
       const index = buttons.findIndex((button) => button.dataset.cardId === String(activeCardId));
@@ -221,12 +276,20 @@
       const isReviewTask = data.cardStatusKey === 'ready_for_review';
       const hasPrevious = Boolean(adjacentButton(-1));
       const hasNext = Boolean(adjacentButton(1));
+      const hasRecommendation = data.cardHasRequeueRecommendation === 'true';
+      const canRequeue = isReviewTask && hasRecommendation && Boolean(data.cardId);
 
-      fields.reviewCallout.classList.toggle('hidden', !isReviewTask);
       fields.prev.disabled = !hasPrevious;
       fields.next.disabled = !hasNext;
       fields.markComplete.disabled = !isReviewTask || !data.cardId;
       fields.markComplete.dataset.cardId = data.cardId || '';
+      fields.requeueActions.classList.toggle('hidden', !canRequeue);
+      fields.requeueRecommendation.disabled = !canRequeue;
+      fields.requeueOriginal.disabled = !canRequeue;
+      fields.requeueRecommendation.dataset.cardId = data.cardId || '';
+      fields.requeueOriginal.dataset.cardId = data.cardId || '';
+      fields.requeueRecommendation.dataset.requeueMode = 'recommendation';
+      fields.requeueOriginal.dataset.requeueMode = 'original';
     };
 
     const openModal = (button) => {
@@ -257,6 +320,9 @@
       fields.reviewLinks.classList.toggle('hidden', reviewLinks.length === 0);
       fields.reviewLinksList.innerHTML = reviewLinks.map((url, index) => reviewLinkMarkup(url, index === 0)).join('');
       fields.live.classList.toggle('hidden', data.cardLive !== 'true');
+      const completionDuration = (data.cardCompletionDuration || '').trim();
+      fields.completionDuration.classList.toggle('hidden', !completionDuration);
+      fields.completionDurationValue.textContent = completionDuration;
       setReviewControls(data);
 
       modal.classList.remove('hidden');
@@ -283,18 +349,17 @@
       history.pushState({}, '', url.toString());
     };
 
-    const boardContainer = () => document.getElementById('kanban-board');
-
-    const replaceBoard = (html) => {
-      const currentBoard = boardContainer();
-      if (!currentBoard) return;
+    const replaceLiveSections = (html) => {
+      const currentSections = liveSectionsContainer();
+      if (!currentSections) return;
 
       const template = document.createElement('template');
       template.innerHTML = html.trim();
-      const nextBoard = template.content.firstElementChild;
-      if (!nextBoard) return;
+      const nextSections = template.content.firstElementChild;
+      if (!nextSections) return;
 
-      currentBoard.replaceWith(nextBoard);
+      currentSections.replaceWith(nextSections);
+      applyAllColumnSorts();
     };
 
     const refreshBoard = async () => {
@@ -303,17 +368,19 @@
       isRefreshingBoard = true;
 
       try {
-        const response = await fetch(boardEndpoint, {
+        const response = await fetch(liveSectionsUrl(), {
           headers: {
-            'Accept': 'text/html'
+            'Accept': 'text/html',
+            'Cache-Control': 'no-cache'
           },
+          cache: 'no-store',
           credentials: 'same-origin'
         });
 
         if (!response.ok) throw new Error(`Board refresh failed with ${response.status}`);
 
         const html = await response.text();
-        replaceBoard(html);
+        replaceLiveSections(html);
         return true;
       } catch (error) {
         console.error(error);
@@ -360,6 +427,14 @@
     });
 
     document.addEventListener('click', async (event) => {
+      const columnSortButton = event.target.closest('.js-kanban-column-sort');
+      if (columnSortButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleColumnSort(columnSortButton);
+        return;
+      }
+
       const archiveAllButton = event.target.closest('.js-archive-all-complete');
       if (archiveAllButton) {
         event.preventDefault();
@@ -395,19 +470,28 @@
         return;
       }
 
-      const requeueButton = event.target.closest('.js-requeue-card');
+      const requeueButton = event.target.closest('.js-requeue-card, #kanban-card-modal-requeue-recommendation, #kanban-card-modal-requeue-original');
       if (requeueButton) {
         event.preventDefault();
         event.stopPropagation();
 
         const cardId = requeueButton.dataset.cardId;
+        const requeueMode = requeueButton.dataset.requeueMode === 'original' ? 'original' : 'recommendation';
+        const endpoint = requeueMode === 'original' ? 'requeue_with_original_instructions' : 'requeue_with_recommendation';
+        const confirmMessage = 'Requeue this task using the timeout recommendation?';
+        const errorMessage = requeueMode === 'original'
+          ? 'Could not requeue the task with original instructions.'
+          : 'Could not requeue the task with recommendation.';
+
         if (!cardId) return;
-        if (!window.confirm('Requeue this task using the timeout recommendation?')) return;
+        if (requeueMode !== 'original' && !window.confirm(confirmMessage)) return;
 
         requeueButton.disabled = true;
+        fields.requeueRecommendation.disabled = true;
+        fields.requeueOriginal.disabled = true;
 
         try {
-          const response = await fetch(`/kanban/cards/${cardId}/requeue_with_recommendation`, {
+          const response = await fetch(`/kanban/cards/${cardId}/${endpoint}`, {
             method: 'PATCH',
             headers: {
               'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '',
@@ -423,8 +507,10 @@
           await refreshBoard();
         } catch (error) {
           console.error(error);
-          alert('Could not requeue the task with recommendation.');
+          alert(errorMessage);
           requeueButton.disabled = false;
+          fields.requeueRecommendation.disabled = false;
+          fields.requeueOriginal.disabled = false;
         }
 
         return;
@@ -464,6 +550,45 @@
           alert('Could not move the task to Complete.');
           markCompleteButton.disabled = false;
           fields.markComplete.disabled = false;
+        }
+
+        return;
+      }
+
+      const moveBacklogButton = event.target.closest('.js-move-backlog-card');
+      if (moveBacklogButton) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const cardId = moveBacklogButton.dataset.cardId;
+        const targetStatus = moveBacklogButton.dataset.targetStatus;
+        const targetLabel = (targetStatus || 'backlog').replace(/_/g, ' ');
+        if (!cardId || !targetStatus) return;
+        if (!window.confirm(`Move this task to ${targetLabel}?`)) return;
+
+        moveBacklogButton.disabled = true;
+
+        try {
+          const response = await fetch(`/kanban/cards/${cardId}/move_backlog`, {
+            method: 'PATCH',
+            headers: {
+              'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '',
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ target_status: targetStatus })
+          });
+
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) throw new Error(payload.error || 'Move backlog failed');
+
+          if (!modal.classList.contains('hidden') && activeCardId === String(cardId)) closeModal();
+          await refreshBoard();
+        } catch (error) {
+          console.error(error);
+          alert(`Could not move the task to ${targetLabel}.`);
+          moveBacklogButton.disabled = false;
         }
 
         return;
@@ -561,6 +686,18 @@
       }
       closeModal();
     });
+
+    const projectFilterForm = document.getElementById('kanban-project-filter-form');
+    const projectFilterSelect = projectFilterForm?.querySelector('[data-auto-submit="true"]');
+    projectFilterSelect?.addEventListener('change', () => {
+      if (projectFilterForm.requestSubmit) {
+        projectFilterForm.requestSubmit();
+      } else {
+        projectFilterForm.submit();
+      }
+    });
+
+    applyAllColumnSorts();
 
     // Auto-open card from ?card= deep link on page load
     const initialCardId = new URL(window.location.href).searchParams.get('card');

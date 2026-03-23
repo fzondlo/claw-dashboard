@@ -1,0 +1,88 @@
+<div id="kanban-live-sections">
+  <section class="mt-6 overflow-hidden rounded-[2rem] border border-slate-200/70 bg-white shadow-[0_24px_80px_-42px_rgba(15,23,42,0.45)]">
+    <div class="border-b border-slate-100 px-5 py-4 sm:px-6" data-live-region="project-filter">
+      <%= form_with url: kanban_path, method: :get, local: true, class: 'flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between', html: { id: 'kanban-project-filter-form' } do |f| %>
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Project scope</div>
+          <div class="mt-2 text-sm text-slate-600">Changing the project filter now updates the board immediately.</div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <label class="inline-flex items-center gap-3 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 shadow-sm shadow-sky-100/50">
+            <span class="pl-1">Project</span>
+            <span class="relative inline-flex items-center">
+              <%= f.select :project_id, options_for_select([['All projects', '']] + @project_options.map { |project| [project.name, project.id] } + [[KanbanCard::NO_PROJECT, 'none']], @selected_project), {}, class: 'appearance-none rounded-full border border-sky-200 bg-white pl-4 pr-10 py-2 text-sm font-semibold text-sky-950 focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-100', data: { auto_submit: true } %>
+              <span class="pointer-events-none absolute right-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-50 text-sky-700 ring-1 ring-sky-100">
+                <svg viewBox="0 0 20 20" fill="none" class="h-3.5 w-3.5" aria-hidden="true">
+                  <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            </span>
+          </label>
+          <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600">Scope · <%= @selected_project_name %></span>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="grid gap-4 px-5 py-5 sm:px-6 xl:grid-cols-3">
+      <div class="rounded-[1.6rem] border border-slate-200 bg-slate-50 p-5" data-live-region="worker-density">
+        <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Worker density</div>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <span class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+            <span class="h-2 w-2 rounded-full bg-slate-400"></span>
+            <%= @workers.size %> Workers
+          </span>
+          <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+            <%= @columns.fetch('in_progress').size %> Active
+          </span>
+          <span class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
+            <span class="h-2 w-2 rounded-full bg-blue-500"></span>
+            <%= @workers.count { |w| !w[:active] } %> Idle
+          </span>
+          <% if @worker_desyncs.any? %>
+            <span class="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+              <span class="h-2 w-2 rounded-full bg-amber-500"></span>
+              <%= pluralize(@worker_desyncs.size, 'desync') %>
+            </span>
+          <% end %>
+        </div>
+      </div>
+      <div class="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm" data-live-region="project-summary">
+        <div class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">Project summary</div>
+        <div class="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+          <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-100 px-4 py-3"><span>Total cards</span><span class="font-semibold text-slate-900"><%= KanbanBoardController::COLUMN_ORDER.sum { |key| @columns.fetch(key).size } %></span></div>
+          <div class="flex items-center justify-between gap-3 rounded-2xl bg-sky-50 px-4 py-3"><span>In progress</span><span class="font-semibold text-sky-800"><%= @columns.fetch('in_progress').size %></span></div>
+        </div>
+      </div>
+      <div class="rounded-[1.6rem] border border-dashed border-slate-300 bg-white/70 p-5" data-live-region="active-workers">
+        <div class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Active workers</div>
+        <div class="mt-4 flex flex-wrap gap-1.5">
+          <% @workers.select { |w| w[:active] }.each do |worker| %>
+            <% badge_classes = worker[:desynced] ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800' %>
+            <% title_bits = [worker[:task], worker[:desync_reason], (worker[:heartbeat_updated_at]&.utc&.strftime('%Y-%m-%d %H:%M:%S UTC') if worker[:heartbeat_updated_at])].compact %>
+            <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold <%= badge_classes %>" title="<%= title_bits.join(' · ') %>">
+              <%= worker[:name] %>
+              <% if worker[:desynced] %><span>⚠</span><% end %>
+            </span>
+          <% end %>
+          <% if @workers.none? { |w| w[:active] } %>
+            <span class="text-sm italic text-slate-400">No active workers</span>
+          <% end %>
+        </div>
+        <% if @worker_desyncs.any? %>
+          <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800">
+            <div class="font-semibold uppercase tracking-[0.2em] text-amber-700">Heartbeat desync</div>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <% @worker_desyncs.each do |worker| %>
+                <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 ring-1 ring-amber-200"><%= worker[:name] %> · <%= worker[:desync_reason] %></span>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </section>
+
+  <%= render 'board' %>
+</div>

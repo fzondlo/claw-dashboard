@@ -8,7 +8,7 @@
   }
 %>
 
-<section class="mt-8" id="kanban-board" data-live-updated-at="<%= @board_updated_at&.utc&.iso8601(6) %>">
+<section class="mt-8" id="kanban-board" data-live-region="kanban-board" data-live-updated-at="<%= @board_updated_at&.utc&.iso8601(6) %>">
   <div class="mb-4 flex flex-col gap-3 rounded-[1.75rem] border border-slate-200/80 bg-white/90 px-4 py-4 text-sm text-slate-600 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.55)] backdrop-blur sm:px-5">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <div class="flex items-center gap-3">
@@ -41,7 +41,8 @@
     <% KanbanBoardController::COLUMN_ORDER.each do |key| %>
       <% meta = column_meta.fetch(key) %>
       <% cards = @columns.fetch(key) %>
-      <section class="flex min-h-[36rem] flex-col rounded-[1.75rem] border p-4 shadow-sm shadow-slate-900/5 <%= meta[:shell_class] %>">
+      <% default_sort = kanban_sort_defaults.fetch(key, 'oldest') %>
+      <section class="flex min-h-[36rem] flex-col rounded-[1.75rem] border p-4 shadow-sm shadow-slate-900/5 <%= meta[:shell_class] %>" data-kanban-column="<%= key %>" data-sort-default="<%= default_sort %>">
         <div class="mb-4 flex items-start justify-between gap-3 border-b border-slate-200/70 pb-4">
           <div>
             <div class="flex items-center gap-2">
@@ -50,21 +51,32 @@
             </div>
             <p class="mt-2 text-sm leading-6 text-slate-500"><%= meta[:subtitle] %></p>
           </div>
-          <span class="inline-flex min-w-[2.25rem] items-center justify-center rounded-full px-3 py-1 text-xs font-semibold <%= meta[:count_class] %>"><%= cards.size %></span>
+          <div class="flex items-center gap-2 self-start">
+            <button type="button"
+                    class="js-kanban-column-sort inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                    data-column-key="<%= key %>"
+                    data-sort-default="<%= default_sort %>"
+                    title="<%= default_sort == 'newest' ? 'Sorted newest first — click to switch to oldest first' : 'Sorted oldest first — click to switch to newest first' %>"
+                    aria-label="<%= default_sort == 'newest' ? 'Sorted newest first — click to switch to oldest first' : 'Sorted oldest first — click to switch to newest first' %>">
+              <span class="js-kanban-column-sort-icon block leading-none transition-transform duration-150" aria-hidden="true"><%= default_sort == 'newest' ? '↓' : '↑' %></span>
+            </button>
+            <span class="inline-flex h-7 min-w-[2.25rem] items-center justify-center rounded-full px-3 text-xs font-semibold <%= meta[:count_class] %>"><%= cards.size %></span>
+          </div>
         </div>
 
-        <div class="flex flex-1 flex-col gap-3">
+        <div class="flex flex-1 flex-col gap-3" data-kanban-column-cards>
           <% if cards.any? %>
             <% cards.each do |item| %>
               <% description_text = markdown_plain_text(item.description).presence || activity_feed_preview(item) %>
               <% tags = Array(item.try(:tags) || item.try(:tag_list)).compact.reject(&:blank?) %>
               <% review_links = review_links_for(item) %>
               <% timeout_recommendation = item.try(:timeout_recommendation).to_s.strip %>
+              <% completion_duration = completion_duration_label(item) %>
               <% metadata_bits = [] %>
               <% metadata_bits << item.priority if item.priority.present? %>
               <% metadata_bits << item.lane if item.lane.present? %>
               <% metadata_bits << item.worker if item.worker.present? && item.worker != item.lane %>
-              <article class="group rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-900/5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md" data-kanban-card-id="<%= item.id if item.is_a?(KanbanCard) %>">
+              <article class="group rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-900/5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md" data-kanban-card-id="<%= item.id if item.is_a?(KanbanCard) %>" data-card-sort-timestamp="<%= kanban_sort_timestamp_for(item, key) %>">
                 <button type="button"
                         class="w-full text-left js-open-card-modal"
                         data-card-id="<%= item.id if item.is_a?(KanbanCard) %>"
@@ -73,15 +85,17 @@
                         data-card-project="<%= item.try(:project_name) || KanbanCard::NO_PROJECT %>"
                         data-card-status="<%= meta[:title] %>"
                         data-card-status-key="<%= key %>"
-                        data-card-description-html="<%= html_attribute_escape(render_markdown(item.description.to_s)) %>"
-                        data-card-activity-html="<%= html_attribute_escape(activity_feed_html(item)) %>"
-                        data-card-review-focus-html="<%= html_attribute_escape(render_markdown([item.review_focus.to_s.presence, (timeout_recommendation.present? ? "## Timeout recommendation\n\n#{timeout_recommendation}" : nil)].compact.join("\n\n"))) %>"
+                        data-card-description-html="<%= ERB::Util.html_escape_once(render_markdown(item.description.to_s)).html_safe %>"
+                        data-card-activity-html="<%= ERB::Util.html_escape_once(activity_feed_html(item)).html_safe %>"
+                        data-card-review-focus-html="<%= ERB::Util.html_escape_once(render_markdown([item.review_focus.to_s.presence, (timeout_recommendation.present? ? "## Timeout recommendation\n\n#{timeout_recommendation}" : nil)].compact.join("\n\n"))).html_safe %>"
                         data-card-review-links="<%= review_links.join("\n") %>"
                         data-card-priority="<%= item.priority.to_s %>"
                         data-card-lane="<%= item.lane.to_s %>"
                         data-card-worker="<%= item.worker.to_s %>"
                         data-card-tags="<%= tags.join(' • ') %>"
-                        data-card-live="<%= key == 'in_progress' %>">
+                        data-card-live="<%= key == 'in_progress' %>"
+                        data-card-completion-duration="<%= completion_duration.to_s %>"
+                        data-card-has-requeue-recommendation="<%= timeout_recommendation.present? %>">
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                       <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700">Task #<%= item.try(:display_task_id) || item.try(:task_number) || item.try(:external_id).presence || item.id %></div>
@@ -112,13 +126,18 @@
                     <div class="mt-4 flex flex-wrap gap-2">
                       <% since = item.try(:in_progress_since) || item.try(:updated_at) %>
                       <% if since %>
-                        <% elapsed_min = ((Time.current - since) / 60).round %>
-                        <% duration_color = elapsed_min >= 60 ? 'bg-red-50 text-red-700 ring-red-100' : elapsed_min >= 20 ? 'bg-amber-50 text-amber-700 ring-amber-100' : 'bg-emerald-50 text-emerald-700 ring-emerald-100' %>
-                        <div class="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold ring-1 <%= duration_color %>" title="In progress since <%= since.utc.strftime('%Y-%m-%d %H:%M UTC') %>">⏱ <%= elapsed_min < 1 ? '< 1 min' : pluralize(elapsed_min, 'min') %></div>
+                        <div class="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold ring-1 <%= in_progress_elapsed_badge_classes(since) %>" title="In progress since <%= since.utc.strftime('%Y-%m-%d %H:%M UTC') %>">⏱ <%= in_progress_elapsed_badge_label(since) %></div>
                       <% end %>
                     </div>
-                  <% elsif key.in?(%w[complete ready_for_review]) && (item.review_focus.present? || item.try(:activity_entries_list).present? || timeout_recommendation.present?) %>
-                    <div class="mt-4 inline-flex items-center rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600"><%= timeout_recommendation.present? ? 'Timed out with recommendation' : 'Has review context' %></div>
+                  <% elsif key.in?(%w[complete ready_for_review]) %>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                      <% if completion_duration.present? %>
+                        <div class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100" title="Time from In progress to Ready for review">⏱ Completed in <%= completion_duration %></div>
+                      <% end %>
+                      <% if item.review_focus.present? || item.try(:activity_entries_list).present? || timeout_recommendation.present? %>
+                        <div class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600"><%= timeout_recommendation.present? ? 'Timed out with recommendation' : 'Has review context' %></div>
+                      <% end %>
+                    </div>
                   <% end %>
                 </button>
 
@@ -130,8 +149,17 @@
                                 class="inline-flex items-center justify-center rounded-full border border-sky-300 bg-sky-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm shadow-sky-600/20 transition hover:bg-sky-700 js-requeue-card"
                                 title="Requeue with recommendation"
                                 aria-label="Requeue with recommendation"
-                                data-card-id="<%= item.id %>">
+                                data-card-id="<%= item.id %>"
+                                data-requeue-mode="recommendation">
                           Requeue with recommendation
+                        </button>
+                        <button type="button"
+                                class="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-900/5 transition hover:bg-slate-50 js-requeue-card"
+                                title="Requeue with original instructions"
+                                aria-label="Requeue with original instructions"
+                                data-card-id="<%= item.id %>"
+                                data-requeue-mode="original">
+                          Requeue with original instructions
                         </button>
                       <% end %>
                       <button type="button"
@@ -141,7 +169,27 @@
                               data-card-id="<%= item.id %>">
                         Mark complete
                       </button>
-                    <% else %>
+                    <% elsif key == 'queued' %>
+                      <button type="button"
+                              class="inline-flex items-center justify-center rounded-full border border-slate-300 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 js-move-backlog-card"
+                              title="Move task to Icebox"
+                              aria-label="Move task to Icebox"
+                              data-card-id="<%= item.id %>"
+                              data-card-status="<%= item.status %>"
+                              data-target-status="icebox">
+                        Move to Icebox
+                      </button>
+                    <% elsif key == 'icebox' %>
+                      <button type="button"
+                              class="inline-flex items-center justify-center rounded-full border border-violet-200 bg-violet-50 px-3.5 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-100 hover:text-violet-800 js-move-backlog-card"
+                              title="Move task to Queue"
+                              aria-label="Move task to Queue"
+                              data-card-id="<%= item.id %>"
+                              data-card-status="<%= item.status %>"
+                              data-target-status="queued">
+                        Move to Queue
+                      </button>
+                    <% elsif key == 'complete' %>
                       <button type="button"
                               class="inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 hover:text-amber-800 js-archive-card"
                               title="Archive task"

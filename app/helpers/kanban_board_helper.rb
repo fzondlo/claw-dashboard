@@ -1,4 +1,5 @@
 require 'cgi'
+require 'nokogiri'
 
 module KanbanBoardHelper
   MARKDOWN_OPTIONS = {
@@ -26,7 +27,7 @@ module KanbanBoardHelper
   end
 
   def render_markdown(content)
-    markdown = content.to_s
+    markdown = normalize_markdownish_content(content)
     return '<p>—</p>'.html_safe if markdown.blank?
 
     html = Commonmarker.to_html(markdown, options: MARKDOWN_OPTIONS)
@@ -76,5 +77,164 @@ module KanbanBoardHelper
         content_tag(:div, render_markdown(entry[:body]), class: 'markdown-body mt-3 text-sm leading-6 text-slate-700')
       ])
     end
+  end
+
+  def in_progress_elapsed_badge_state(since, now: Time.current)
+    elapsed_minutes = in_progress_elapsed_minutes(since, now: now)
+    return :danger if elapsed_minutes > 12
+    return :warning if elapsed_minutes > 7
+
+    :normal
+  end
+
+  def in_progress_elapsed_badge_classes(since, now: Time.current)
+    case in_progress_elapsed_badge_state(since, now: now)
+    when :danger
+      'bg-red-100 text-red-900 ring-red-200'
+    when :warning
+      'bg-amber-100 text-amber-900 ring-amber-200'
+    else
+      'bg-emerald-50 text-emerald-700 ring-emerald-100'
+    end
+  end
+
+  def in_progress_elapsed_badge_label(since, now: Time.current)
+    elapsed_minutes = in_progress_elapsed_minutes(since, now: now)
+    elapsed_minutes < 1 ? '< 1 min' : pluralize(elapsed_minutes, 'min')
+  end
+
+  def completion_duration_label(item)
+    seconds = item.try(:completion_duration_seconds_value)
+    return if seconds.blank?
+
+    format_duration_compact(seconds)
+  end
+
+  def format_duration_compact(total_seconds)
+    seconds = total_seconds.to_i
+    return if seconds.negative?
+    return '0m' if seconds < 60
+
+    hours = seconds / 3600
+    minutes = (seconds % 3600) / 60
+
+    return "#{hours}h #{minutes}m" if hours.positive? && minutes.positive?
+    return "#{hours}h" if hours.positive?
+
+    "#{minutes}m"
+  end
+
+  def kanban_sort_defaults
+    {
+      'icebox' => 'oldest',
+      'queued' => 'oldest',
+      'in_progress' => 'oldest',
+      'ready_for_review' => 'newest',
+      'complete' => 'newest'
+    }
+  end
+
+  def kanban_sort_timestamp_for(item, column_key)
+    timestamp = case column_key.to_s
+    when 'ready_for_review', 'complete'
+      item.try(:completed_at) || item.try(:updated_at) || item.try(:created_at) || item.try(:in_progress_since)
+    when 'in_progress'
+      item.try(:updated_at) || item.try(:in_progress_since) || item.try(:created_at)
+    else
+      item.try(:created_at) || item.try(:updated_at) || item.try(:completed_at) || item.try(:in_progress_since)
+    end
+
+    timestamp&.utc&.iso8601(6)
+  end
+
+  private
+
+  def in_progress_elapsed_minutes(since, now: Time.current)
+    return 0 unless since
+
+    [((now - since) / 60).round, 0].max
+  end
+
+  def normalize_markdownish_content(content)
+    text = content.to_s
+    return '' if text.blank?
+    return text unless html_like_content?(text)
+
+    html_fragment_to_markdownish(text)
+  end
+
+  def html_like_content?(content)
+    content.to_s.match?(%r{</?[a-z][^>]*>}i)
+  end
+
+  def html_fragment_to_markdownish(content)
+    fragment = Nokogiri::HTML::DocumentFragment.parse(content.to_s)
+    markdown = fragment.children.map { |node| markdownish_for_node(node) }.join
+    markdown.lines.map(&:rstrip).join("\n").gsub(/\n{3,}/, "\n\n").strip
+  end
+
+  def markdownish_for_node(node, list_depth = 0)
+    return node.text.to_s.gsub(/\s+/, ' ') if node.text?
+    return '' unless node.element?
+
+    inner = node.children.map { |child| markdownish_for_node(child, list_depth + (node.name.in?(%w[ul ol]) ? 1 : 0)) }.join.strip
+
+    case node.name.downcase
+    when 'br'
+      "\n"
+    when 'p', 'div', 'section', 'article'
+      inner.present? ? "#{inner}\n\n" : ''
+    when 'strong', 'b'
+      inner.present? ? "**#{inner}**" : ''
+    when 'em', 'i'
+      inner.present? ? "*#{inner}*" : ''
+    when 'code'
+      inner.present? ? "`#{inner}`" : ''
+    when 'pre'
+      inner.present? ? "```\n#{node.text.to_s.strip}\n```\n\n" : ''
+    when 'a'
+      href = node['href'].to_s.strip
+      return inner if href.blank?
+      label = inner.presence || href
+      "[#{label}](#{href})"
+    when 'ul'
+      render_list(node, ordered: false, depth: list_depth)
+    when 'ol'
+      render_list(node, ordered: true, depth: list_depth)
+    when 'li'
+      inner
+    when 'h1'
+      inner.present? ? "# #{inner}\n\n" : ''
+    when 'h2'
+      inner.present? ? "## #{inner}\n\n" : ''
+    when 'h3'
+      inner.present? ? "### #{inner}\n\n" : ''
+    when 'h4', 'h5', 'h6'
+      inner.present? ? "#### #{inner}\n\n" : ''
+    when 'blockquote'
+      inner.lines.map { |line| line.strip.present? ? "> #{line.strip}" : '>' }.join("\n") + "\n\n"
+    else
+      inner
+    end
+  end
+
+  def render_list(node, ordered:, depth: 0)
+    items = node.element_children.select { |child| child.name.downcase == 'li' }
+    return '' if items.empty?
+
+    indent = '  ' * [depth - 1, 0].max
+    rendered = items.each_with_index.map do |item, index|
+      marker = ordered ? "#{index + 1}." : '-'
+      body = item.children.map { |child| markdownish_for_node(child, depth) }.join.strip
+      next if body.blank?
+
+      lines = body.lines.map(&:rstrip)
+      first = lines.shift
+      formatted = ["#{indent}#{marker} #{first}"]
+      formatted.concat(lines.map { |line| line.present? ? "#{indent}  #{line}" : '' })
+      formatted.join("\n")
+    end.compact
+
+    rendered.join("\n") + "\n\n"
   end
 end

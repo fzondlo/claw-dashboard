@@ -10,6 +10,7 @@ class KanbanCard < ApplicationRecord
 
   before_validation :ensure_task_number, on: :create
   before_validation :normalize_work_state
+  after_commit :kick_marvin_dispatcher_if_queueable, on: %i[create update]
   validate :prevent_unrequested_archive, on: :update
   validate :single_active_in_progress_per_lane, if: :enforcing_in_progress_lane_uniqueness?
   validate :ready_for_review_requires_qa_link, if: :ready_for_review?
@@ -90,6 +91,10 @@ class KanbanCard < ApplicationRecord
     raise ArgumentError, 'review notes must include at least one QA URL' if normalized_review_notes.scan(QA_URL_REGEX).empty?
 
     with_lock do
+      duration_seconds = if in_progress_since.present?
+        [(occurred_at - in_progress_since).to_i, 0].max
+      end
+
       update!(
         status: 'ready_for_review',
         review_focus: normalized_review_notes,
@@ -97,6 +102,7 @@ class KanbanCard < ApplicationRecord
         worker: worker.presence || self.worker,
         lane: lane.presence || self.lane,
         completed_at: occurred_at,
+        completion_duration_seconds: duration_seconds,
         in_progress_since: nil
       )
       append_activity!(
@@ -115,6 +121,10 @@ class KanbanCard < ApplicationRecord
     normalized_metadata = (self.timeout_metadata || {}).deep_dup
     normalized_metadata.merge!(metadata.deep_stringify_keys) if metadata.present?
 
+    duration_seconds = if in_progress_since.present?
+      [(occurred_at - in_progress_since).to_i, 0].max
+    end
+
     update!(
       status: 'ready_for_review',
       timed_out_at: occurred_at,
@@ -123,6 +133,7 @@ class KanbanCard < ApplicationRecord
       review_focus: normalized_review_focus.presence || self.review_focus,
       timeout_metadata: normalized_metadata,
       completed_at: occurred_at,
+      completion_duration_seconds: duration_seconds,
       in_progress_since: nil
     )
 
@@ -146,12 +157,53 @@ class KanbanCard < ApplicationRecord
         lane: nil,
         in_progress_since: nil,
         completed_at: nil,
+        completion_duration_seconds: nil,
         notes: notes_parts.join("\n\n"),
         requeue_recommendation: nil,
         timeout_recommendation: nil,
         timeout_metadata: {}
       )
       append_activity!(body: "Requeued with timeout recommendation.\n\n#{recommendation}", created_at: occurred_at, kind: 'requeue', source: source)
+    end
+  end
+
+  def requeue_with_original_instructions!(occurred_at: Time.current, source: 'kanban_board')
+    recommendation = effective_requeue_recommendation
+    raise 'Only timed-out review tasks can be requeued with original instructions.' unless ready_for_review? && recommendation.present?
+
+    with_lock do
+      update!(
+        status: 'queued',
+        worker: nil,
+        lane: nil,
+        in_progress_since: nil,
+        completed_at: nil,
+        completion_duration_seconds: nil,
+        requeue_recommendation: nil,
+        timeout_recommendation: nil,
+        timeout_metadata: {}
+      )
+      append_activity!(body: 'Requeued with original instructions only.', created_at: occurred_at, kind: 'requeue', source: source)
+    end
+  end
+
+  def move_between_backlog_states!(target_status:, occurred_at: Time.current, source: 'kanban_board')
+    normalized_target = target_status.to_s
+    allowed_targets = %w[queued icebox]
+    raise ArgumentError, 'Target status is invalid.' unless allowed_targets.include?(normalized_target)
+    raise ArgumentError, 'Only queued or icebox tasks can be moved.' unless status.in?(allowed_targets)
+    raise ArgumentError, 'Task is already in that state.' if status == normalized_target
+
+    previous_status = status
+
+    with_lock do
+      update!(status: normalized_target)
+      append_activity!(
+        body: "Moved from #{previous_status.humanize} to #{normalized_target.humanize}.",
+        created_at: occurred_at,
+        kind: 'status_change',
+        source: source
+      )
     end
   end
 
@@ -177,6 +229,16 @@ class KanbanCard < ApplicationRecord
 
   def tag_list
     Array(tags)
+  end
+
+  def completion_duration_seconds_value
+    value = self[:completion_duration_seconds]
+    return value if value.present?
+
+    return unless in_progress_since.present? && completed_at.present?
+
+    duration = completed_at - in_progress_since
+    duration.positive? ? duration.to_i : nil
   end
 
   def project_name
@@ -250,10 +312,12 @@ class KanbanCard < ApplicationRecord
       self.lane = nil
       self.in_progress_since = nil
       self.completed_at = nil if status == 'queued'
+      self.completion_duration_seconds = nil if status == 'queued'
     when 'in_progress'
       self.active = true if active.nil?
       self.in_progress_since ||= Time.current
       self.completed_at = nil
+      self.completion_duration_seconds = nil
     when 'ready_for_review', 'complete'
       self.in_progress_since = nil
       self.completed_at ||= Time.current
@@ -327,5 +391,13 @@ class KanbanCard < ApplicationRecord
     end
     parts << "Review focus:\n#{review_focus}" if review_focus.present?
     parts.join("\n\n")
+  end
+
+  def kick_marvin_dispatcher_if_queueable
+    return unless active?
+    return unless status == 'queued'
+    return unless previous_changes.key?('status') || previous_changes.key?('active') || previous_changes.key?('id')
+
+    MarvinQueue::DispatchKick.kick
   end
 end

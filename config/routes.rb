@@ -13,6 +13,8 @@ Rails.application.routes.draw do
   delete "/kanban/cards/archive_complete", to: "kanban_board#archive_complete", as: :archive_complete_kanban_cards
   patch "/kanban/cards/:id/complete", to: "kanban_board#mark_complete", as: :complete_kanban_card
   patch "/kanban/cards/:id/requeue_with_recommendation", to: "kanban_board#requeue_with_recommendation", as: :requeue_with_recommendation_kanban_card
+  patch "/kanban/cards/:id/requeue_with_original_instructions", to: "kanban_board#requeue_with_original_instructions", as: :requeue_with_original_instructions_kanban_card
+  patch "/kanban/cards/:id/move_backlog", to: "kanban_board#move_backlog", as: :move_backlog_kanban_card
   delete "/kanban/cards/:id", to: "kanban_board#destroy", as: :delete_kanban_card
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 

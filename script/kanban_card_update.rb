@@ -88,4 +88,5 @@ else
 end
 
 card.reload
+MarvinQueue::CompletionMemory.record!(card) if %w[ready_for_review complete].include?(card.status)
 puts({ ok: true, id: card.id, status: card.status, worker: card.worker, lane: card.lane, qa_urls: card.qa_urls }.to_json)

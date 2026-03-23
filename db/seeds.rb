@@ -36,13 +36,13 @@ projects_seed = [
     description: "Internal tourist-registration workflow app for reservation imports, admin review, and operational processing tied to Hospitable data."
   },
   {
-    name: "OpenClaw",
+    name: "DevOps",
     slug: "openclaw",
     repo: "openclaw",
     status: "Active",
     url: "https://dash.zevner.com/",
     link_label: "Open dashboard",
-    description: "Core OpenClaw runtime, automation, session orchestration, and lane-management work."
+    description: "Core DevOps runtime, automation, session orchestration, and lane-management work."
   }
 ]
 
@@ -67,7 +67,7 @@ kanban_seed = {
     {
       external_id: "OPS-101",
       title: "Review Pixi 7 runtime reload path",
-      project_name: "OpenClaw",
+      project_name: "DevOps",
       lane: "Pixi 7",
       worker: "Unassigned",
       priority: "High",
@@ -77,7 +77,7 @@ kanban_seed = {
     {
       external_id: "OPS-102",
       title: "Audit idle lane session pressure",
-      project_name: "OpenClaw",
+      project_name: "DevOps",
       lane: "Shared",
       worker: "Unassigned",
       priority: "Medium",
@@ -90,7 +90,7 @@ kanban_seed = {
     {
       external_id: "OPS-090",
       title: "Clean up stray OpenClaw cron sessions",
-      project_name: "OpenClaw",
+      project_name: "DevOps",
       lane: "Pixi 1",
       worker: "Pixi 1",
       description: "Removed noisy watchdog cron jobs and cleaned stale session entries so only real sessions remain visible.",
