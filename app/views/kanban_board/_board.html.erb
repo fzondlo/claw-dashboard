@@ -9,32 +9,14 @@
 %>
 
 <section class="mt-8" id="kanban-board" data-live-region="kanban-board" data-live-updated-at="<%= @board_updated_at&.utc&.iso8601(6) %>">
-  <div class="mb-4 flex flex-col gap-3 rounded-[1.75rem] border border-slate-200/80 bg-white/90 px-4 py-4 text-sm text-slate-600 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.55)] backdrop-blur sm:px-5">
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div class="flex items-center gap-3">
-        <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200/80">
-          <span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-        </span>
-        <div>
-          <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-700">Live board</div>
-          <div class="mt-1 text-sm font-medium text-slate-700">Auto-refresh is on. Board checks for updates every 15 seconds.</div>
-        </div>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
-          Last board update
-          <span class="text-slate-900" data-live-updated-label><%= @board_updated_at ? @board_updated_at.utc.strftime('%Y-%m-%d %H:%M:%S UTC') : 'Unknown' %></span>
-        </span>
-        <% if @columns.fetch('complete').any? %>
-          <button type="button"
-                  class="inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 hover:text-amber-800 js-archive-all-complete"
-                  data-project-id="<%= @selected_project.to_s %>">
-            Archive all complete
-          </button>
-        <% end %>
-      </div>
-    </div>
+  <div class="mb-4 flex justify-end">
+    <% if @columns.fetch('complete').any? %>
+      <button type="button"
+              class="inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 hover:text-amber-800 js-archive-all-complete"
+              data-project-id="<%= @selected_project.to_s %>">
+        Archive all complete
+      </button>
+    <% end %>
   </div>
 
   <div class="grid gap-3 md:gap-4 xl:grid-cols-5">

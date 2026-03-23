@@ -66,7 +66,7 @@ module MarvinQueue
           'id' => card.id,
           'title' => card.title,
           'summary' => card.summary.to_s,
-          'notes' => card.notes.to_s,
+          'notes' => '',
           'project_name' => card.project&.name.to_s,
           'timeout_recommendation' => card.timeout_recommendation.to_s
         }
@@ -112,8 +112,12 @@ module MarvinQueue
         'You own this card now. Do the work unless blocked.',
         'Immediately update your own lane heartbeat using the exact lane path above.',
         "The board should stay in 'in_progress' while you work.",
+        'All jobs must report real card activity. Do not finish a task without leaving at least one substantive activity update that explains what you did, what changed, key notes/decisions, and anything Frank should know.',
+        'If Frank added new activity/feedback on the card, read it and respond to it explicitly in your work and in your activity updates. Do not ignore card activity.',
+        'During multi-step work, post progress/activity updates as you go, not just at the very end, unless the task is truly tiny.',
         'When done, default to ready_for_review and include at least one QA URL in review_notes.',
-        'If this card is a research / recommendation / strategy task, put the actual answer directly into the card activity so Frank can read it in the modal. Do not only write a generic done/QA-link update.',
+        'Do not only write a generic done/QA-link update. The activity log must say what was actually done.',
+        'If this card is a research / recommendation / strategy task, put the actual answer directly into the card activity so Frank can read it in the modal.',
         'When you put substantive notes or research into card activity, write clean readable Markdown (headings, paragraphs, lists) so the modal renders it nicely and it is easy to review.',
         'If there is any durable lesson/decision worth keeping, append one concise bullet to this memory file before you finish: ' + memory_path,
         'As soon as you finish and update the card, clear your own heartbeat file back to Active task: (none).',

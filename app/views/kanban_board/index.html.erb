@@ -11,7 +11,14 @@
 
       <div class="flex flex-wrap gap-2">
         <%= link_to 'Archived tasks', archive_path, class: 'inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50' %>
-        <%= link_to 'Preview route', kanban_v2_path(project_id: @selected_project.presence), class: 'inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50' %>
+        <button type="button" class="js-open-create-task-modal inline-flex items-center justify-center gap-2 rounded-2xl border border-violet-600 bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-violet-700 hover:bg-violet-700">
+          <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-violet-700/70">
+            <svg viewBox="0 0 20 20" fill="none" class="h-3.5 w-3.5" aria-hidden="true">
+              <path d="M10 4.25v11.5M4.25 10h11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </span>
+          <span>Create task</span>
+        </button>
       </div>
     </div>
 
@@ -655,10 +662,12 @@
         event.stopPropagation();
 
         const cardId = moveBacklogButton.dataset.cardId;
+        const currentStatus = moveBacklogButton.dataset.cardStatus;
         const targetStatus = moveBacklogButton.dataset.targetStatus;
         const targetLabel = (targetStatus || 'backlog').replace(/_/g, ' ');
         if (!cardId || !targetStatus) return;
-        if (!window.confirm(`Move this task to ${targetLabel}?`)) return;
+        const needsConfirmation = !(currentStatus === 'icebox' && targetStatus === 'queued');
+        if (needsConfirmation && !window.confirm(`Move this task to ${targetLabel}?`)) return;
 
         moveBacklogButton.disabled = true;
 

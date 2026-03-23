@@ -50,6 +50,10 @@ when 'ready_for_review'
       activity_source: 'kanban_card_update'
     )
   else
+    if options[:activity].to_s.strip.empty?
+      abort('ready_for_review updates must include --activity with a substantive summary of what was done')
+    end
+
     card.complete_work!(
       review_notes: options[:review_focus],
       worker: options[:worker],
