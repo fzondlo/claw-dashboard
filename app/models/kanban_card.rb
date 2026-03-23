@@ -187,6 +187,42 @@ class KanbanCard < ApplicationRecord
     end
   end
 
+  def submit_feedback_and_requeue!(feedback:, occurred_at: Time.current, source: 'kanban_board')
+    feedback_text = feedback.to_s.strip
+    raise ArgumentError, 'Feedback is required to submit and requeue.' if feedback_text.blank?
+    raise ArgumentError, 'Only Ready for review tasks can be submitted and requeued.' unless ready_for_review?
+
+    with_lock do
+      append_activity!(
+        body: "QA feedback submitted for requeue:\n\n#{feedback_text}",
+        created_at: occurred_at,
+        kind: 'qa_feedback',
+        source: source
+      )
+
+      notes_parts = [notes.presence, "Latest QA feedback to address:\n#{feedback_text}"].compact
+      update!(
+        status: 'queued',
+        worker: nil,
+        lane: nil,
+        in_progress_since: nil,
+        completed_at: nil,
+        completion_duration_seconds: nil,
+        notes: notes_parts.join("\n\n"),
+        requeue_recommendation: nil,
+        timeout_recommendation: nil,
+        timeout_metadata: {}
+      )
+
+      append_activity!(
+        body: "Submitted QA feedback and requeued task. Follow the latest feedback above.",
+        created_at: occurred_at,
+        kind: 'requeue',
+        source: source
+      )
+    end
+  end
+
   def move_between_backlog_states!(target_status:, occurred_at: Time.current, source: 'kanban_board')
     normalized_target = target_status.to_s
     allowed_targets = %w[queued icebox]

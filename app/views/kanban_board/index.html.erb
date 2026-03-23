@@ -51,6 +51,14 @@
             <section class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
               <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Activity</div>
               <div id="kanban-card-modal-activity" class="mt-2 text-sm leading-6 text-slate-700"></div>
+              <div id="kanban-card-modal-activity-feedback" class="mt-4 hidden rounded-2xl border border-violet-200 bg-white p-4 shadow-sm shadow-violet-100/70">
+                <div class="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">Add QA feedback</div>
+                <p class="mt-1 text-sm font-medium text-slate-700">Add a new activity update, then requeue the task so the worker follows the latest feedback.</p>
+                <div class="mt-3 space-y-3">
+                  <textarea id="kanban-card-modal-feedback" rows="4" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-violet-300 focus:bg-white focus:ring-2 focus:ring-violet-100" placeholder="Describe what needs to change before this can pass QA."></textarea>
+                  <button type="button" id="kanban-card-modal-submit-feedback-requeue" class="inline-flex w-full items-center justify-center rounded-2xl border border-violet-300 bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:border-violet-200 disabled:bg-violet-200">Submit and requeue</button>
+                </div>
+              </div>
             </section>
 
             <section class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
@@ -89,10 +97,9 @@
 
           <section id="kanban-card-modal-requeue-actions" class="hidden rounded-2xl border border-violet-200 bg-white p-4 shadow-sm shadow-violet-100/70">
             <div class="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">Requeue options</div>
-            <p class="mt-1 text-sm font-medium text-slate-700">Keep the timeout recommendation or send the worker back with the original instructions only.</p>
+            <p class="mt-1 text-sm font-medium text-slate-700">Use the activity section to add feedback, or send the task back unchanged.</p>
             <div class="mt-3 flex flex-col gap-2">
-              <button type="button" id="kanban-card-modal-requeue-recommendation" class="js-requeue-card inline-flex items-center justify-center rounded-2xl border border-violet-300 bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:border-violet-200 disabled:bg-violet-200">Requeue with recommendation</button>
-              <button type="button" id="kanban-card-modal-requeue-original" class="js-requeue-card inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400">Requeue with original instructions</button>
+              <button type="button" id="kanban-card-modal-requeue-original" class="js-requeue-card inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400">Requeue with original instructions</button>
             </div>
           </section>
         </aside>
@@ -136,7 +143,9 @@
       reviewLinks: document.getElementById('kanban-card-modal-review-links'),
       reviewLinksList: document.getElementById('kanban-card-modal-review-links-list'),
       requeueActions: document.getElementById('kanban-card-modal-requeue-actions'),
-      requeueRecommendation: document.getElementById('kanban-card-modal-requeue-recommendation'),
+      submitFeedbackRequeue: document.getElementById('kanban-card-modal-submit-feedback-requeue'),
+      feedback: document.getElementById('kanban-card-modal-feedback'),
+      activityFeedback: document.getElementById('kanban-card-modal-activity-feedback'),
       requeueOriginal: document.getElementById('kanban-card-modal-requeue-original'),
       live: document.getElementById('kanban-card-modal-live'),
       completionDuration: document.getElementById('kanban-card-modal-completion-duration'),
@@ -296,19 +305,17 @@
       const isReviewTask = data.cardStatusKey === 'ready_for_review';
       const hasPrevious = Boolean(adjacentButton(-1));
       const hasNext = Boolean(adjacentButton(1));
-      const hasRecommendation = data.cardHasRequeueRecommendation === 'true';
-      const canRequeue = isReviewTask && hasRecommendation && Boolean(data.cardId);
+      const canRequeue = isReviewTask && Boolean(data.cardId);
 
       fields.prev.disabled = !hasPrevious;
       fields.next.disabled = !hasNext;
       fields.markComplete.disabled = !isReviewTask || !data.cardId;
       fields.markComplete.dataset.cardId = data.cardId || '';
       fields.requeueActions.classList.toggle('hidden', !canRequeue);
-      fields.requeueRecommendation.disabled = !canRequeue;
+      fields.submitFeedbackRequeue.disabled = !canRequeue;
       fields.requeueOriginal.disabled = !canRequeue;
-      fields.requeueRecommendation.dataset.cardId = data.cardId || '';
+      fields.submitFeedbackRequeue.dataset.cardId = data.cardId || '';
       fields.requeueOriginal.dataset.cardId = data.cardId || '';
-      fields.requeueRecommendation.dataset.requeueMode = 'recommendation';
       fields.requeueOriginal.dataset.requeueMode = 'original';
     };
 
@@ -338,6 +345,8 @@
       fields.reviewFocus.innerHTML = data.cardReviewFocusHtml || '<p>—</p>';
       fields.reviewLinks.classList.toggle('hidden', reviewLinks.length === 0);
       fields.reviewLinksList.innerHTML = reviewLinks.map((url, index) => reviewLinkMarkup(url, index === 0)).join('');
+      fields.feedback.value = '';
+      fields.activityFeedback.classList.toggle('hidden', data.cardStatusKey !== 'ready_for_review');
       fields.live.classList.toggle('hidden', data.cardLive !== 'true');
       const completionDuration = (data.cardCompletionDuration || '').trim();
       fields.completionDuration.classList.toggle('hidden', !completionDuration);
@@ -513,7 +522,51 @@
         return;
       }
 
-      const requeueButton = event.target.closest('.js-requeue-card, #kanban-card-modal-requeue-recommendation, #kanban-card-modal-requeue-original');
+      const submitFeedbackButton = event.target.closest('#kanban-card-modal-submit-feedback-requeue');
+      if (submitFeedbackButton) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const cardId = submitFeedbackButton.dataset.cardId;
+        const feedback = fields.feedback?.value?.trim() || '';
+        if (!cardId) return;
+        if (!feedback) {
+          alert('Add QA feedback before requeuing the task.');
+          fields.feedback?.focus();
+          return;
+        }
+
+        submitFeedbackButton.disabled = true;
+        fields.requeueOriginal.disabled = true;
+
+        try {
+          const response = await fetch(`/kanban/cards/${cardId}/submit_feedback_and_requeue`, {
+            method: 'PATCH',
+            headers: {
+              'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '',
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ feedback })
+          });
+
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) throw new Error(payload.error || 'Submit and requeue failed');
+
+          if (!modal.classList.contains('hidden')) closeModal();
+          await refreshBoard();
+        } catch (error) {
+          console.error(error);
+          alert(error.message || 'Could not submit feedback and requeue the task.');
+          submitFeedbackButton.disabled = false;
+          fields.requeueOriginal.disabled = false;
+        }
+
+        return;
+      }
+
+      const requeueButton = event.target.closest('.js-requeue-card, #kanban-card-modal-requeue-original');
       if (requeueButton) {
         event.preventDefault();
         event.stopPropagation();
@@ -521,16 +574,14 @@
         const cardId = requeueButton.dataset.cardId;
         const requeueMode = requeueButton.dataset.requeueMode === 'original' ? 'original' : 'recommendation';
         const endpoint = requeueMode === 'original' ? 'requeue_with_original_instructions' : 'requeue_with_recommendation';
-        const confirmMessage = 'Requeue this task using the timeout recommendation?';
         const errorMessage = requeueMode === 'original'
           ? 'Could not requeue the task with original instructions.'
           : 'Could not requeue the task with recommendation.';
 
         if (!cardId) return;
-        if (requeueMode !== 'original' && !window.confirm(confirmMessage)) return;
 
         requeueButton.disabled = true;
-        fields.requeueRecommendation.disabled = true;
+        fields.submitFeedbackRequeue.disabled = true;
         fields.requeueOriginal.disabled = true;
 
         try {
@@ -552,7 +603,7 @@
           console.error(error);
           alert(errorMessage);
           requeueButton.disabled = false;
-          fields.requeueRecommendation.disabled = false;
+          fields.submitFeedbackRequeue.disabled = false;
           fields.requeueOriginal.disabled = false;
         }
 

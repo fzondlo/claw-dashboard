@@ -157,6 +157,35 @@ class KanbanBoardController < ApplicationController
     end
   end
 
+  def submit_feedback_and_requeue
+    card = KanbanCard.find(params[:id])
+
+    if card.active == false
+      return render json: { error: 'Task is already archived.' }, status: :unprocessable_entity if request.xhr? || request.format.json?
+
+      redirect_to kanban_path, alert: 'Task is already archived.'
+      return
+    end
+
+    feedback = params[:feedback].to_s
+
+    card.with_lock do
+      card.submit_feedback_and_requeue!(feedback: feedback, source: 'kanban_board')
+    end
+
+    if request.xhr? || request.format.json?
+      render json: { ok: true, requeuedId: card.id, status: card.status }
+    else
+      redirect_to kanban_path, notice: 'Task feedback submitted and requeued.'
+    end
+  rescue ArgumentError => e
+    if request.xhr? || request.format.json?
+      render json: { error: e.message }, status: :unprocessable_entity
+    else
+      redirect_to kanban_path, alert: e.message
+    end
+  end
+
   def move_backlog
     card = KanbanCard.find(params[:id])
 
